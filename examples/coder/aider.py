@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 
 from agents import Agent, ItemHelpers, MessageOutputItem, Runner, trace
 
@@ -8,9 +9,40 @@ then picks which agents to call, as tools.
 """
 
 class CoderAgent(Agent):
-    def __init__(self, name: str, instructions: str, handoff_description: str):
+    def __init__(self, name: str, instructions: str, handoff_description: str, repo_path: str = "."):
         super().__init__(name=name, instructions=instructions)
         self.handoff_description = handoff_description
+        self.repo_path = repo_path # Path to the git repository
+
+    async def run(self, input_message):
+        # 1. Prepare the command to run aider.  This is a placeholder
+        #    and will need to be adapted based on the actual aider CLI.
+        command = [
+            "aider",
+            "--input", input_message,
+            "--repo", self.repo_path
+            # ... other aider options ...
+        ]
+
+        # 2. Run aider as a subprocess.
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        # 3. Get the output and error streams.
+        stdout, stderr = await process.communicate()
+
+        # 4. Check for errors.
+        if process.returncode != 0:
+            error_message = stderr.decode()
+            # Handle the error (e.g., return an error message, raise an exception)
+            return [MessageOutputItem.from_text(f"Aider Error: {error_message}", role="assistant")]
+
+        # 5. Process the output.
+        output_text = stdout.decode()
+        return [MessageOutputItem.from_text(output_text, role="assistant")]
 
     def as_tool(self, tool_name: str, tool_description: str):
         return {
@@ -18,61 +50,35 @@ class CoderAgent(Agent):
             "description": tool_description,
             "agent": self,
         }
+
     def __repr__(self):
         return f"CoderAgent(name={self.name}, instructions={self.instructions}, handoff_description={self.handoff_description})"
 
+# --- Example Usage (within the larger example) ---
 
-spanish_agent = Agent(
-    name="spanish_agent",
-    instructions="You translate the user's message to Spanish",
-    handoff_description="An english to spanish translator",
-)
-
-french_agent = Agent(
-    name="french_agent",
-    instructions="You translate the user's message to French",
-    handoff_description="An english to french translator",
-)
-
-italian_agent = Agent(
-    name="italian_agent",
-    instructions="You translate the user's message to Italian",
-    handoff_description="An english to italian translator",
+coder_agent = CoderAgent(
+    name="coder_agent",
+    instructions="You are a coding assistant. You use aider to modify code in the repository.",
+    handoff_description="A coding assistant that uses aider.",
+    repo_path="."  # Assuming the current directory is the repo
 )
 
 orchestrator_agent = Agent(
     name="orchestrator_agent",
     instructions=(
-        "You are a translation agent. You use the tools given to you to translate."
-        "If asked for multiple translations, you call the relevant tools in order."
-        "You never translate on your own, you always use the provided tools."
+        "You are a coding assistant orchestrator. You use the tools given to you, including the coder_agent, to help the user."
     ),
     tools=[
-        spanish_agent.as_tool(
-            tool_name="translate_to_spanish",
-            tool_description="Translate the user's message to Spanish",
-        ),
-        french_agent.as_tool(
-            tool_name="translate_to_french",
-            tool_description="Translate the user's message to French",
-        ),
-        italian_agent.as_tool(
-            tool_name="translate_to_italian",
-            tool_description="Translate the user's message to Italian",
+        coder_agent.as_tool(
+            tool_name="modify_code",
+            tool_description="Use aider to modify code in the repository based on the user's instructions.",
         ),
     ],
 )
 
-synthesizer_agent = Agent(
-    name="synthesizer_agent",
-    instructions="You inspect translations, correct them if needed, and produce a final concatenated response.",
-)
-
-
 async def main():
-    msg = input("Hi! What would you like translated, and to which languages? ")
+    msg = input("Hi! What would you like me to do with the code? ")
 
-    # Run the entire orchestration in a single trace
     with trace("Orchestrator evaluator"):
         orchestrator_result = await Runner.run(orchestrator_agent, msg)
 
@@ -80,14 +86,9 @@ async def main():
             if isinstance(item, MessageOutputItem):
                 text = ItemHelpers.text_message_output(item)
                 if text:
-                    print(f"  - Translation step: {text}")
+                    print(f"  - Step: {text}")
 
-        synthesizer_result = await Runner.run(
-            synthesizer_agent, orchestrator_result.to_input_list()
-        )
-
-    print(f"\n\nFinal response:\n{synthesizer_result.final_output}")
-
+    print(f"\n\nFinal response:\n{orchestrator_result.final_output}")
 
 if __name__ == "__main__":
     asyncio.run(main())
