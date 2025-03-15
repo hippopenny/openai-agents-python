@@ -67,8 +67,8 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"success output", b"")  # Simulate successful execution
         agent.aider_runner = mock_runner
 
-        # Call modify_code directly, as it's the tool method
-        actual_output = await agent.modify_code("test input")
+        # Call modify_code's underlying function directly
+        actual_output = await agent.modify_code.func(agent, "test input")
         self.assertEqual(actual_output, "success output")
 
 
@@ -80,6 +80,6 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"", b"error output")  # Simulate error
         agent.aider_runner = mock_runner
 
-        # Call modify_code directly
-        actual_output = await agent.modify_code("test input")
+        # Call modify_code's underlying function directly
+        actual_output = await agent.modify_code.func(agent, "test input")
         self.assertEqual(actual_output, "Aider Error: error output")
