@@ -32,9 +32,9 @@ class TestAiderConfig(unittest.TestCase):
         self.assertEqual(config.auto_commit, True)
 
     def test_custom_values(self):
-        config = AiderConfig(repo_path="/tmp/repo", model="gpt-3.5-turbo", editor_model="another-model", temperature=0.5, allow_dirty=False, auto_commit=False)
+        config = AiderConfig(repo_path="/tmp/repo", model="gpt-4o-mini", editor_model="o1-mini", temperature=0.5, allow_dirty=False, auto_commit=False)
         self.assertEqual(config.repo_path, "/tmp/repo")
-        self.assertEqual(config.model, "gpt-3.5-turbo")
+        self.assertEqual(config.model, "gpt-4o-mini")
         self.assertEqual(config.editor_model, "o1-mini")
         self.assertEqual(config.temperature, 0.5)
         self.assertEqual(config.allow_dirty, False)
