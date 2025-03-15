@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 from examples.coder.aider import AiderConfig, AiderRunner, OutputProcessor, CoderAgent
 from agents import Agent, MessageOutputItem
+import subprocess  # Import subprocess here
 
 class TestAiderConfig(unittest.TestCase):
     def test_default_values(self):
