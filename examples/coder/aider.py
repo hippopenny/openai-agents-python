@@ -1,5 +1,7 @@
 import asyncio
 import subprocess
+from dataclasses import dataclass
+from typing import Optional, List
 
 from agents import Agent, ItemHelpers, MessageOutputItem, Runner, trace
 
@@ -8,41 +10,64 @@ This workflow shows the agents-as-tools pattern. The frontline agent receives a 
 then picks which agents to call, as tools.
 """
 
-class CoderAgent(Agent):
-    def __init__(self, name: str, instructions: str, handoff_description: str, repo_path: str = "."):
-        super().__init__(name=name, instructions=instructions)
-        self.handoff_description = handoff_description
-        self.repo_path = repo_path # Path to the git repository
+@dataclass
+class AiderConfig:
+    repo_path: str = "."
+    model: str = "gpt-4"  # Placeholder, adjust as needed
+    temperature: float = 0.7 # Placeholder
+    allow_dirty: bool = True # Placeholder
+    auto_commit: bool = True # Placeholder
 
-    async def run(self, input_message):
-        # 1. Prepare the command to run aider.  This is a placeholder
-        #    and will need to be adapted based on the actual aider CLI.
-        command = [
-            "aider",
-            "--input", input_message,
-            "--repo", self.repo_path
-            # ... other aider options ...
-        ]
+class AiderRunner:
+    def __init__(self, config: AiderConfig):
+        self.config = config
 
-        # 2. Run aider as a subprocess.
+    async def execute(self, command: List[str]) -> tuple[bytes, bytes]:
         process = await asyncio.create_subprocess_exec(
             *command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        return await process.communicate()
 
-        # 3. Get the output and error streams.
-        stdout, stderr = await process.communicate()
+class OutputProcessor:
+    @staticmethod
+    def process_output(stdout: bytes, stderr: bytes) -> dict:
+        return {
+            "output": stdout.decode(),
+            "errors": stderr.decode() if stderr else None
+        }
+
+class CoderAgent(Agent):
+    def __init__(self, name: str, instructions: str, handoff_description: str, config: AiderConfig):
+        super().__init__(name=name, instructions=instructions)
+        self.handoff_description = handoff_description
+        self.aider_runner = AiderRunner(config)
+        self.config = config
+
+    async def run(self, input_message):
+        # 1. Prepare the command to run aider.
+        command = [
+            "aider",
+            "--input", input_message,
+            "--repo", self.config.repo_path,
+            # Add options based on AiderConfig
+            # "--model", self.config.model,  # Example: Add model if supported by aider CLI
+        ]
+
+        # 2. Run aider using AiderRunner.
+        stdout, stderr = await self.aider_runner.execute(command)
+
+        # 3. Process the output.
+        processed_output = OutputProcessor.process_output(stdout, stderr)
 
         # 4. Check for errors.
-        if process.returncode != 0:
-            error_message = stderr.decode()
-            # Handle the error (e.g., return an error message, raise an exception)
-            return [MessageOutputItem.from_text(f"Aider Error: {error_message}", role="assistant")]
+        if processed_output["errors"]:
+            # Handle the error
+            return [MessageOutputItem.from_text(f"Aider Error: {processed_output['errors']}", role="assistant")]
 
-        # 5. Process the output.
-        output_text = stdout.decode()
-        return [MessageOutputItem.from_text(output_text, role="assistant")]
+        # 5. Return the successful output.
+        return [MessageOutputItem.from_text(processed_output["output"], role="assistant")]
 
     def as_tool(self, tool_name: str, tool_description: str):
         return {
@@ -54,13 +79,15 @@ class CoderAgent(Agent):
     def __repr__(self):
         return f"CoderAgent(name={self.name}, instructions={self.instructions}, handoff_description={self.handoff_description})"
 
-# --- Example Usage (within the larger example) ---
+# --- Example Usage ---
+
+coder_config = AiderConfig(repo_path=".")  # Use default config
 
 coder_agent = CoderAgent(
     name="coder_agent",
     instructions="You are a coding assistant. You use aider to modify code in the repository.",
     handoff_description="A coding assistant that uses aider.",
-    repo_path="."  # Assuming the current directory is the repo
+    config=coder_config,
 )
 
 orchestrator_agent = Agent(
