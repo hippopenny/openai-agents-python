@@ -30,15 +30,20 @@ class TestAiderConfig(unittest.TestCase):
         self.assertEqual(config.temperature, 0.7)
         self.assertEqual(config.allow_dirty, True)
         self.assertEqual(config.auto_commit, True)
+        self.assertIsNone(config.api_key)
+        self.assertIsNone(config.api_base)
+
 
     def test_custom_values(self):
-        config = AiderConfig(repo_path="/tmp/repo", model="gpt-4o-mini", editor_model="o1-mini", temperature=0.5, allow_dirty=False, auto_commit=False)
+        config = AiderConfig(repo_path="/tmp/repo", model="gpt-4o-mini", editor_model="o1-mini", temperature=0.5, allow_dirty=False, auto_commit=False, api_key="test_key", api_base="test_base")
         self.assertEqual(config.repo_path, "/tmp/repo")
         self.assertEqual(config.model, "gpt-4o-mini")
         self.assertEqual(config.editor_model, "o1-mini")
         self.assertEqual(config.temperature, 0.5)
         self.assertEqual(config.allow_dirty, False)
         self.assertEqual(config.auto_commit, False)
+        self.assertEqual(config.api_key, "test_key")
+        self.assertEqual(config.api_base, "test_base")
 
 class TestAiderRunner(unittest.IsolatedAsyncioTestCase):
     async def test_execute(self):

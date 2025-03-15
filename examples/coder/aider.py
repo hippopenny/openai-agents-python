@@ -18,6 +18,9 @@ class AiderConfig:
     temperature: float = 0.7 # Placeholder
     allow_dirty: bool = True # Placeholder
     auto_commit: bool = True # Placeholder
+    api_key: str | None = None
+    api_base: str | None = None
+
 
 class AiderRunner:
     def __init__(self, config: AiderConfig):
