@@ -1,8 +1,15 @@
 import unittest
 from unittest.mock import AsyncMock, patch
+import subprocess
+import sys
+import os
+
+# Add the parent directory to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from examples.coder.aider import AiderConfig, AiderRunner, OutputProcessor, CoderAgent
 from agents import Agent, MessageOutputItem
-import subprocess
+
 
 class TestAiderConfig(unittest.TestCase):
     def test_default_values(self):
