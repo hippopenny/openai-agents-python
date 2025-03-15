@@ -2,21 +2,23 @@ import unittest
 from unittest.mock import AsyncMock, patch
 from examples.coder.aider import AiderConfig, AiderRunner, OutputProcessor, CoderAgent
 from agents import Agent, MessageOutputItem
-import subprocess  # Import subprocess here
+import subprocess
 
 class TestAiderConfig(unittest.TestCase):
     def test_default_values(self):
         config = AiderConfig()
         self.assertEqual(config.repo_path, ".")
-        self.assertEqual(config.model, "gpt-4")
+        self.assertEqual(config.model, "openrouter/google/gemini-2.0-pro-exp-02-05:free")
+        self.assertEqual(config.editor_model, "gemini/gemini-2.0-flash-exp")
         self.assertEqual(config.temperature, 0.7)
         self.assertEqual(config.allow_dirty, True)
         self.assertEqual(config.auto_commit, True)
 
     def test_custom_values(self):
-        config = AiderConfig(repo_path="/tmp/repo", model="gpt-3.5-turbo", temperature=0.5, allow_dirty=False, auto_commit=False)
+        config = AiderConfig(repo_path="/tmp/repo", model="gpt-3.5-turbo", editor_model="another-model", temperature=0.5, allow_dirty=False, auto_commit=False)
         self.assertEqual(config.repo_path, "/tmp/repo")
         self.assertEqual(config.model, "gpt-3.5-turbo")
+        self.assertEqual(config.editor_model, "another-model")
         self.assertEqual(config.temperature, 0.5)
         self.assertEqual(config.allow_dirty, False)
         self.assertEqual(config.auto_commit, False)
@@ -30,9 +32,9 @@ class TestAiderRunner(unittest.IsolatedAsyncioTestCase):
         mock_process.communicate.return_value = (b"stdout_output", b"stderr_output")
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
-            stdout, stderr = await runner.execute(["aider", "--input", "test"])
+            stdout, stderr = await runner.execute(["aiderhp", "--input", "test", "--model", config.model, "--editor-model", config.editor_model, "--repo", config.repo_path])
 
-            mock_exec.assert_called_once_with("aider", "--input", "test", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            mock_exec.assert_called_once_with("aiderhp", "--input", "test", "--model", config.model, "--editor-model", config.editor_model, "--repo", config.repo_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.assertEqual(stdout, b"stdout_output")
             self.assertEqual(stderr, b"stderr_output")
 

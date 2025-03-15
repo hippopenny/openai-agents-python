@@ -13,7 +13,8 @@ then picks which agents to call, as tools.
 @dataclass
 class AiderConfig:
     repo_path: str = "."
-    model: str = "gpt-4"  # Placeholder, adjust as needed
+    model: str = "openrouter/google/gemini-2.0-pro-exp-02-05:free"
+    editor_model: str = "gemini/gemini-2.0-flash-exp"
     temperature: float = 0.7 # Placeholder
     allow_dirty: bool = True # Placeholder
     auto_commit: bool = True # Placeholder
@@ -48,11 +49,11 @@ class CoderAgent(Agent):
     async def run(self, input_message):
         # 1. Prepare the command to run aider.
         command = [
-            "aider",
+            "aiderhp",
             "--input", input_message,
+            "--model", self.config.model,
+            "--editor-model", self.config.editor_model,
             "--repo", self.config.repo_path,
-            # Add options based on AiderConfig
-            # "--model", self.config.model,  # Example: Add model if supported by aider CLI
         ]
 
         # 2. Run aider using AiderRunner.
