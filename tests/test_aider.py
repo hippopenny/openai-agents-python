@@ -24,7 +24,7 @@ class TestAiderConfig(unittest.TestCase):
     def test_custom_values(self):
         config = AiderConfig(repo_path="/tmp/repo", model="gpt-3.5-turbo", editor_model="another-model", temperature=0.5, allow_dirty=False, auto_commit=False)
         self.assertEqual(config.repo_path, "/tmp/repo")
-        self.assertEqual(config.model, "gpt-4o-mini")
+        self.assertEqual(config.model, "gpt-3.5-turbo")
         self.assertEqual(config.editor_model, "o1-mini")
         self.assertEqual(config.temperature, 0.5)
         self.assertEqual(config.allow_dirty, False)
@@ -67,8 +67,8 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"success output", b"")  # Simulate successful execution
         agent.aider_runner = mock_runner
 
-        # Call modify_code's underlying function directly
-        actual_output = await agent.modify_code.func(agent, "test input")
+        # Call modify_code directly
+        actual_output = await agent.modify_code("test input")
         self.assertEqual(actual_output, "success output")
 
 
@@ -80,8 +80,8 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"", b"error output")  # Simulate error
         agent.aider_runner = mock_runner
 
-        # Call modify_code's underlying function directly
-        actual_output = await agent.modify_code.func(agent, "test input")
+        # Call modify_code directly
+        actual_output = await agent.modify_code("test input")
         self.assertEqual(actual_output, "Aider Error: error output")
 
     async def test_hello_world(self):
@@ -89,8 +89,8 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         agent = CoderAgent(name="test_agent", instructions="test instructions", handoff_description="test handoff", config=config)
 
         mock_runner = AsyncMock()
-        mock_runner.execute.return_value = (b"hello world", b"")  # Simulate aider printing "hello world"
+        mock_runner.execute.return_value = (b"ADDED: hello.py\n", b"")  # Simulate aider output
         agent.aider_runner = mock_runner
 
-        actual_output = await agent.modify_code.func(agent, "Print hello world")
-        self.assertEqual(actual_output, "hello world")
+        actual_output = await agent.modify_code("Create a new file hello.py and write 'hello world' to it.")
+        self.assertEqual(actual_output, "ADDED: hello.py\n")
