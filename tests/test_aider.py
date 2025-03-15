@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from examples.coder.aider import AiderConfig, AiderRunner, OutputProcessor, CoderAgent
-from agents import Agent, MessageOutputItem
+from agents import Agent, MessageOutputItem, ItemHelpers
 
 
 class TestAiderConfig(unittest.TestCase):
@@ -67,9 +67,9 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"success output", b"")  # Simulate successful execution
         agent.aider_runner = mock_runner
 
-        expected_output = [MessageOutputItem(content="success output", role="assistant")]
-        actual_output = await agent.run("test input")
-        self.assertEqual(actual_output, expected_output)
+        # Call modify_code directly, as it's the tool method
+        actual_output = await agent.modify_code("test input")
+        self.assertEqual(actual_output, "success output")
 
 
     async def test_run_error(self):
@@ -80,6 +80,6 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"", b"error output")  # Simulate error
         agent.aider_runner = mock_runner
 
-        expected_output = [MessageOutputItem(content="Aider Error: error output", role="assistant")]
-        actual_output = await agent.run("test input")
-        self.assertEqual(actual_output, expected_output)
+        # Call modify_code directly
+        actual_output = await agent.modify_code("test input")
+        self.assertEqual(actual_output, "Aider Error: error output")

@@ -3,7 +3,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Optional, List
 
-from agents import Agent, ItemHelpers, MessageOutputItem, Runner, trace
+from agents import Agent, ItemHelpers, MessageOutputItem, Runner, trace, function_tool
 
 """
 This workflow shows the agents-as-tools pattern. The frontline agent receives a user message and
@@ -46,14 +46,20 @@ class CoderAgent(Agent):
         self.aider_runner = AiderRunner(config)
         self.config = config
 
-    async def run(self, input_message):
+    @function_tool(name_override="modify_code", description_override="Use aider to modify code in the repository based on the user's instructions.")
+    async def modify_code(self, instructions: str) -> str:
+        """
+        This method is the tool that will be called by other agents.
+        It takes the user's instructions and runs aider.
+        """
         # 1. Prepare the command to run aider.
         command = [
             "aiderhp",
-            "--input", input_message,
+            "--input", instructions,
             "--model", self.config.model,
             "--editor-model", self.config.editor_model,
             "--repo", self.config.repo_path,
+            "--yes" # Add --yes for non-interactive use
         ]
 
         # 2. Run aider using AiderRunner.
@@ -65,17 +71,10 @@ class CoderAgent(Agent):
         # 4. Check for errors.
         if processed_output["errors"]:
             # Handle the error
-            return [MessageOutputItem.from_text(f"Aider Error: {processed_output['errors']}", role="assistant")]
+            return f"Aider Error: {processed_output['errors']}"
 
         # 5. Return the successful output.
-        return [MessageOutputItem.from_text(processed_output["output"], role="assistant")]
-
-    def as_tool(self, tool_name: str, tool_description: str):
-        return {
-            "name": tool_name,
-            "description": tool_description,
-            "agent": self,
-        }
+        return processed_output["output"]
 
     def __repr__(self):
         return f"CoderAgent(name={self.name}, instructions={self.instructions}, handoff_description={self.handoff_description})"
@@ -97,10 +96,7 @@ orchestrator_agent = Agent(
         "You are a coding assistant orchestrator. You use the tools given to you, including the coder_agent, to help the user."
     ),
     tools=[
-        coder_agent.as_tool(
-            tool_name="modify_code",
-            tool_description="Use aider to modify code in the repository based on the user's instructions.",
-        ),
+        coder_agent.modify_code,
     ],
 )
 
