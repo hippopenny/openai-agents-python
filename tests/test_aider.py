@@ -3,12 +3,22 @@ from unittest.mock import AsyncMock, patch
 import subprocess
 import sys
 import os
+import json
 
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from examples.coder.aider import AiderConfig, AiderRunner, OutputProcessor, CoderAgent
-from agents import Agent, MessageOutputItem, ItemHelpers
+from agents import Agent, Runner, ItemHelpers, MessageOutputItem
+from tests.fake_model import FakeModel  # Import FakeModel
+from tests.test_responses import (  # Import test response helpers
+    get_final_output_message,
+    get_function_tool,
+    get_function_tool_call,
+    get_handoff_tool_call,
+    get_text_input_item,
+    get_text_message,
+)
 
 
 class TestAiderConfig(unittest.TestCase):
@@ -62,35 +72,82 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
     async def test_run_success(self):
         config = AiderConfig()
         agent = CoderAgent(name="test_agent", instructions="test instructions", handoff_description="test handoff", config=config)
+        orchestrator_agent = Agent(
+            name="orchestrator_agent",
+            instructions="test instructions",
+            tools=[agent.modify_code],
+        )
 
         mock_runner = AsyncMock()
-        mock_runner.execute.return_value = (b"success output", b"")  # Simulate successful execution
+        mock_runner.execute.return_value = (b"success output", b"")
         agent.aider_runner = mock_runner
 
-        # Call modify_code directly
-        actual_output = await agent.modify_code("test input")
-        self.assertEqual(actual_output, "success output")
+        model = FakeModel()
+        orchestrator_agent.model = model
+        model.add_multiple_turn_outputs(
+            [
+                [get_function_tool_call("modify_code", json.dumps({"instructions": "test input"}))],
+                [get_text_message("success output")],
+            ]
+        )
+
+        result = await Runner.run(orchestrator_agent, "test input")
+        self.assertEqual(result.final_output, "success output")
 
 
     async def test_run_error(self):
         config = AiderConfig()
         agent = CoderAgent(name="test_agent", instructions="test instructions", handoff_description="test handoff", config=config)
-
+        orchestrator_agent = Agent(
+            name="orchestrator_agent",
+            instructions="test instructions",
+            tools=[agent.modify_code],
+        )
         mock_runner = AsyncMock()
-        mock_runner.execute.return_value = (b"", b"error output")  # Simulate error
+        mock_runner.execute.return_value = (b"", b"error output")
         agent.aider_runner = mock_runner
 
-        # Call modify_code directly
-        actual_output = await agent.modify_code("test input")
-        self.assertEqual(actual_output, "Aider Error: error output")
+        model = FakeModel()
+        orchestrator_agent.model = model
+        model.add_multiple_turn_outputs(
+            [
+                [get_function_tool_call("modify_code", json.dumps({"instructions": "test input"}))],
+                [get_text_message("Aider Error: error output")],
+            ]
+        )
+
+        result = await Runner.run(orchestrator_agent, "test input")
+        self.assertEqual(result.final_output, "Aider Error: error output")
 
     async def test_hello_world(self):
         config = AiderConfig()
-        agent = CoderAgent(name="test_agent", instructions="test instructions", handoff_description="test handoff", config=config)
+        agent = CoderAgent(name="coder_agent", instructions="test instructions", handoff_description="test handoff", config=config)
+        orchestrator_agent = Agent(
+            name="orchestrator_agent",
+            instructions="test instructions",
+            tools=[agent.modify_code],
+        )
 
         mock_runner = AsyncMock()
-        mock_runner.execute.return_value = (b"ADDED: hello.py\n", b"")  # Simulate aider output
+        mock_runner.execute.return_value = (b"ADDED: hello.py\n", b"")
         agent.aider_runner = mock_runner
 
-        actual_output = await agent.modify_code("Create a new file hello.py and write 'hello world' to it.")
-        self.assertEqual(actual_output, "ADDED: hello.py\n")
+        model = FakeModel()
+        orchestrator_agent.model = model
+
+        model.add_multiple_turn_outputs(
+            [
+                [
+                    get_function_tool_call(
+                        "modify_code",
+                        json.dumps({
+                            "instructions": "Create a new file hello.py and write 'hello world' to it."
+                        }),
+                    )
+                ],
+                [get_text_message("ADDED: hello.py\n")],
+            ]
+        )
+
+        result = await Runner.run(orchestrator_agent, "test input")
+        self.assertEqual(result.final_output, "ADDED: hello.py\n")
