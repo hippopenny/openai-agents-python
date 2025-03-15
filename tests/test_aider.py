@@ -52,7 +52,7 @@ class TestOutputProcessor(unittest.TestCase):
 
     def test_process_output_without_errors(self):
         result = OutputProcessor.process_output(b"some output", b"")
-        self.assertEqual(result, {"output": "some output", "errors": ""})
+        self.assertEqual(result, {"output": "some output", "errors": None})
 
     def test_process_output_with_no_errors(self):
         result = OutputProcessor.process_output(b"some output", None)
@@ -67,7 +67,7 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"success output", b"")  # Simulate successful execution
         agent.aider_runner = mock_runner
 
-        expected_output = [MessageOutputItem.from_text("success output", role="assistant")]
+        expected_output = [MessageOutputItem(content="success output", role="assistant")]
         actual_output = await agent.run("test input")
         self.assertEqual(actual_output, expected_output)
 
@@ -80,6 +80,6 @@ class TestCoderAgent(unittest.IsolatedAsyncioTestCase):
         mock_runner.execute.return_value = (b"", b"error output")  # Simulate error
         agent.aider_runner = mock_runner
 
-        expected_output = [MessageOutputItem.from_text("Aider Error: error output", role="assistant")]
+        expected_output = [MessageOutputItem(content="Aider Error: error output", role="assistant")]
         actual_output = await agent.run("test input")
         self.assertEqual(actual_output, expected_output)
