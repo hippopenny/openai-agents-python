@@ -7,7 +7,7 @@ The OpenAI Agents SDK is a lightweight yet powerful framework for building multi
 ### Core concepts:
 
 1. [**Agents**](https://openai.github.io/openai-agents-python/agents): LLMs configured with instructions, tools, guardrails, and handoffs
-2. [**Handoffs**](https://openai.github.io/openai-agents-python/handoffs/): Allow agents to transfer control to other agents for specific tasks
+2. [**Handoffs**](https://openai.github.io/openai-agents-python/handoffs/): A specialized tool call used by the Agents SDK for transferring control between agents
 3. [**Guardrails**](https://openai.github.io/openai-agents-python/guardrails/): Configurable safety checks for input and output validation
 4. [**Tracing**](https://openai.github.io/openai-agents-python/tracing/): Built-in tracking of agent runs, allowing you to view, debug and optimize your workflows
 
@@ -30,6 +30,8 @@ source env/bin/activate
 pip install openai-agents
 ```
 
+For voice support, install with the optional `voice` group: `pip install 'openai-agents[voice]'`.
+
 ## Hello world example
 
 ```python
@@ -47,9 +49,11 @@ print(result.final_output)
 
 (_If running this, ensure you set the `OPENAI_API_KEY` environment variable_)
 
+(_For Jupyter notebook users, see [hello_world_jupyter.py](examples/basic/hello_world_jupyter.py)_)
+
 ## Handoffs example
 
-```py
+```python
 from agents import Agent, Runner
 import asyncio
 
@@ -116,7 +120,7 @@ When you call `Runner.run()`, we run a loop until we get a final output.
 
 1. We call the LLM, using the model and settings on the agent, and the message history.
 2. The LLM returns a response, which may include tool calls.
-3. If the response has a final output (see below for the more on this), we return it and end the loop.
+3. If the response has a final output (see below for more on this), we return it and end the loop.
 4. If the response has a handoff, we set the agent to the new agent and go back to step 1.
 5. We process the tool calls (if any) and append the tool responses messages. Then we go to step 1.
 
@@ -140,7 +144,7 @@ The Agents SDK is designed to be highly flexible, allowing you to model a wide r
 
 ## Tracing
 
-The Agents SDK automatically traces your agent runs, making it easy to track and debug the behavior of your agents. Tracing is extensible by design, supporting custom spans and a wide variety of external destinations, including [Logfire](https://logfire.pydantic.dev/docs/integrations/llms/openai/#openai-agents), [AgentOps](https://docs.agentops.ai/v1/integrations/agentssdk), and [Braintrust](https://braintrust.dev/docs/guides/traces/integrations#openai-agents-sdk). For more details about how to customize or disable tracing, see [Tracing](http://openai.github.io/openai-agents-python/tracing).
+The Agents SDK automatically traces your agent runs, making it easy to track and debug the behavior of your agents. Tracing is extensible by design, supporting custom spans and a wide variety of external destinations, including [Logfire](https://logfire.pydantic.dev/docs/integrations/llms/openai/#openai-agents), [AgentOps](https://docs.agentops.ai/v1/integrations/agentssdk), [Braintrust](https://braintrust.dev/docs/guides/traces/integrations#openai-agents-sdk), [Scorecard](https://docs.scorecard.io/docs/documentation/features/tracing#openai-agents-sdk-integration), and [Keywords AI](https://docs.keywordsai.co/integration/development-frameworks/openai-agent). For more details about how to customize or disable tracing, see [Tracing](http://openai.github.io/openai-agents-python/tracing), which also includes a larger list of [external tracing processors](http://openai.github.io/openai-agents-python/tracing/#external-tracing-processors-list).
 
 ## Development (only needed if you need to edit the SDK/examples)
 
