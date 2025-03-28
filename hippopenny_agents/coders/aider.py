@@ -2,7 +2,7 @@ import os
 
 from agents import Agent
 # Assuming the provider is located here. Please verify this path.
-from agents.models.hippopenny_aider import HippoPennyAiderModelProvider
+from agents.models.hippopenny_aider_provider import HippoPennyAiderModelProvider
 
 from .context import CoderContext
 
@@ -37,11 +37,7 @@ def create_aider_agent() -> Agent[CoderContext]:
 
     # Configure the HippoPennyAiderModelProvider
     # It likely takes similar arguments for proxy configuration
-    aider_model_provider = HippoPennyAiderModelProvider(
-        base_url=AIDER_PROXY_BASE_URL,
-        api_key=AIDER_PROXY_API_KEY,
-        model=AIDER_MODEL_NAME,
-    )
+    aider_model_provider = HippoPennyAiderModelProvider()
 
     aider_agent = Agent[CoderContext](
         model=aider_model_provider, # Use the provider instance directly

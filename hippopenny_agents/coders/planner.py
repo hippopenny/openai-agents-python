@@ -2,7 +2,7 @@ import os # Import os for environment variables if needed directly, or rely on a
 
 from agents import Agent, function_tool
 # Import the provider and config constants
-from agents.models.hippopenny_aider import HippoPennyAiderModelProvider
+from agents.models.hippopenny_aider_provider import HippoPennyAiderModelProvider
 from agents.run_context import RunContextWrapper
 
 from .aider import (
@@ -101,11 +101,6 @@ def create_planner_agent() -> Agent[CoderContext]:
     # Configure the HippoPennyAiderModelProvider for the planner
     # Using the same proxy settings as the aider agent
     planner_model_provider = HippoPennyAiderModelProvider(
-        base_url=AIDER_PROXY_BASE_URL,
-        api_key=AIDER_PROXY_API_KEY,
-        # You might want a different model for planning, e.g., a faster/cheaper one
-        # model=os.environ.get("PLANNER_MODEL_NAME", AIDER_MODEL_NAME),
-        model=AIDER_MODEL_NAME, # Using the same model for now
     )
 
 
