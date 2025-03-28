@@ -95,20 +95,24 @@ def get_tasks(context: RunContextWrapper[CoderContext]) -> str:
 def create_planner_agent() -> Agent[CoderContext]:
     """Creates the planner agent."""
     # Define aider agent here primarily so it can be listed in handoffs,
-    # even if direct handoff isn't the primary flow.
-    aider_agent = create_aider_agent()
-
     # Configure the HippoPennyAiderModelProvider for the planner
-    # Using the same proxy settings as the aider agent
+    # Assuming the provider needs the same config as aider would
     planner_model_provider = HippoPennyAiderModelProvider(
+        base_url=AIDER_PROXY_BASE_URL,
+        api_key=AIDER_PROXY_API_KEY,
+        model=AIDER_MODEL_NAME, # Or a specific planner model if desired
     )
 
+    # Get the actual model instance from the provider
+    # Assuming a .get_model() method exists. Adjust if the method name is different.
+    planner_model = planner_model_provider.get_model()
 
     planner_agent = Agent[CoderContext](
         name="PlannerAgent",
-        model=planner_model_provider, # Use the provider instance
+        model=planner_model, # Pass the actual model instance
         instructions=PLANNER_INSTRUCTIONS,
         tools=[update_task_status, add_task, get_tasks],
-        handoffs=[aider_agent],
+        # Refer to the handoff agent by its name
+        handoffs=["AiderAgent"],
     )
     return planner_agent

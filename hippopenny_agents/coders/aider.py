@@ -36,11 +36,18 @@ def create_aider_agent() -> Agent[CoderContext]:
     """Creates the aider agent configured to use the HippoPennyAiderModelProvider."""
 
     # Configure the HippoPennyAiderModelProvider
-    # It likely takes similar arguments for proxy configuration
-    aider_model_provider = HippoPennyAiderModelProvider()
+    aider_model_provider = HippoPennyAiderModelProvider(
+        base_url=AIDER_PROXY_BASE_URL,
+        api_key=AIDER_PROXY_API_KEY,
+        model=AIDER_MODEL_NAME,
+    )
+
+    # Get the actual model instance from the provider
+    # Assuming a .get_model() method exists. Adjust if the method name is different.
+    aider_model = aider_model_provider.get_model()
 
     aider_agent = Agent[CoderContext](
-        model=aider_model_provider, # Use the provider instance directly
+        model=aider_model, # Pass the actual model instance
         instructions=AIDER_INSTRUCTIONS,
         name="AiderAgent", # Give the agent a name
         # Add tools specific to the coder if needed (e.g., file system access tools)
