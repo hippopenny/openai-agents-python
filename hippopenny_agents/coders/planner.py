@@ -96,12 +96,8 @@ def create_planner_agent() -> Agent[CoderContext]:
     """Creates the planner agent."""
     # Define aider agent here primarily so it can be listed in handoffs,
     # Configure the HippoPennyAiderModelProvider for the planner
-    # Assuming the provider needs the same config as aider would
-    planner_model_provider = HippoPennyAiderModelProvider(
-        base_url=AIDER_PROXY_BASE_URL,
-        api_key=AIDER_PROXY_API_KEY,
-        model=AIDER_MODEL_NAME, # Or a specific planner model if desired
-    )
+    # It takes no arguments, presumably reads config from environment or defaults
+    planner_model_provider = HippoPennyAiderModelProvider()
 
     # Get the actual model instance from the provider
     # Assuming a .get_model() method exists. Adjust if the method name is different.
