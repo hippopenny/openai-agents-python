@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass
@@ -8,8 +8,9 @@ class Task:
 
     id: int
     description: str
-    status: str = "pending"  # e.g., pending, in_progress, completed, failed
+    status: Literal["pending", "in_progress", "completed", "failed"] = "pending"
     result: Any | None = None
+    error_message: str | None = None
 
 
 @dataclass

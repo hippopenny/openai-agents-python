@@ -1,6 +1,7 @@
 from agents import Agent, function_tool
 from agents.run_context import RunContextWrapper
 
+from .aider import create_aider_agent # Import aider for handoff definition
 from .context import CoderContext, Task
 
 
@@ -84,9 +85,16 @@ def get_tasks(context: RunContextWrapper[CoderContext]) -> str:
 
 def create_planner_agent() -> Agent[CoderContext]:
     """Creates the planner agent."""
+    # Define aider agent here primarily so it can be listed in handoffs,
+    # even if direct handoff isn't the primary flow.
+    aider_agent = create_aider_agent()
+
     planner_agent = Agent[CoderContext](
+        name="PlannerAgent",
         instructions=PLANNER_INSTRUCTIONS,
         tools=[update_task_status, add_task, get_tasks],
-        # Add model configuration if needed
+        handoffs=[aider_agent],
+        # Consider using a cheaper/faster model for planning if appropriate
+        # model="o3-mini",
     )
     return planner_agent

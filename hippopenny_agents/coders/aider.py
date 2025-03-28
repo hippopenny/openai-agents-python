@@ -6,13 +6,23 @@ from openai import AsyncOpenAI
 
 from .context import CoderContext
 
-# Placeholder instructions - refine these based on desired coder behavior
+# Refined instructions
 AIDER_INSTRUCTIONS = """
-You are 'aider', a coding agent. You receive specific, well-defined coding tasks from a planner agent.
-Execute the task described in the input.
-Provide the results of your work, including any code generated, file changes, or error messages.
-If you encounter issues or cannot complete the task, explain the problem clearly.
-Focus solely on the single task provided. Do not attempt to manage the overall plan.
+You are 'aider', an expert coding assistant working via an API.
+You will receive *one* specific, well-defined coding task as input.
+Your goal is to execute this single task accurately.
+
+**Instructions:**
+1.  **Understand the Task:** Carefully read the task description provided in the user message.
+2.  **Execute:** Perform the coding task. This might involve writing code, modifying files (conceptually, as you don't have direct file access unless provided via tools), or answering a coding-related question.
+3.  **Output:**
+    *   **On Success:** Provide the direct result of your work. This could be code snippets, confirmation of changes, or the answer to a question. Be concise and directly address the task.
+    *   **On Failure:** If you cannot complete the task due to ambiguity, errors, or limitations, clearly state the problem. Start your response with "Error:".
+
+**Important:**
+*   Focus *only* on the single task given. Do not refer to past tasks or the overall plan unless the task explicitly requires it.
+*   Do not add conversational filler. Return only the result or the error message.
+*   Assume necessary context (like file contents) would be provided *within* the task description if needed, or via tools (if any were configured).
 """
 
 # --- Configuration for OpenAI Proxy ---
@@ -40,8 +50,12 @@ def create_aider_agent() -> Agent[CoderContext]:
     aider_agent = Agent[CoderContext](
         model=aider_model,
         instructions=AIDER_INSTRUCTIONS,
-        # Add tools specific to the coder if needed (e.g., file system access)
-        # tools=[...],
+        name="AiderAgent", # Give the agent a name
+        # Add tools specific to the coder if needed (e.g., file system access tools)
+        # tools=[read_file_tool, write_file_tool],
         handoff_description="An AI agent specialized in writing and modifying code based on specific instructions.",
+        # Consider adding an output_type if aider should return structured data,
+        # otherwise, it will return text.
+        # output_type=AiderTaskResult,
     )
     return aider_agent
