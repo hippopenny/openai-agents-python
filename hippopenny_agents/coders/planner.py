@@ -109,9 +109,9 @@ def create_planner_agent() -> Agent[CoderContext]:
         name="PlannerAgent",
         model=planner_model, # Pass the actual model instance
         instructions=PLANNER_INSTRUCTIONS,
-        # tools=[update_task_status, add_task, get_tasks],
+        tools=[update_task_status, add_task, get_tasks],
         # Refer to the handoff agent by its name
-        # handoffs=["AiderAgent"],
+        handoffs=["AiderAgent"],
     )
     return planner_agent
 
