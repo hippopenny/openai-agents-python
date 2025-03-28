@@ -1,8 +1,10 @@
+import asyncio
 import os # Import os for environment variables if needed directly, or rely on aider module
 
 from agents import Agent, function_tool
 # Import the provider and config constants
 from agents.models.hippopenny_aider_provider import HippoPennyAiderModelProvider
+from agents.run import Runner
 from agents.run_context import RunContextWrapper
 
 from .aider import (
@@ -101,14 +103,27 @@ def create_planner_agent() -> Agent[CoderContext]:
 
     # Get the actual model instance from the provider
     # Assuming a .get_model() method exists. Adjust if the method name is different.
-    planner_model = planner_model_provider.get_model()
+    planner_model = planner_model_provider.get_model("aider")
 
     planner_agent = Agent[CoderContext](
         name="PlannerAgent",
         model=planner_model, # Pass the actual model instance
         instructions=PLANNER_INSTRUCTIONS,
-        tools=[update_task_status, add_task, get_tasks],
+        # tools=[update_task_status, add_task, get_tasks],
         # Refer to the handoff agent by its name
-        handoffs=["AiderAgent"],
+        # handoffs=["AiderAgent"],
     )
     return planner_agent
+
+async def main():
+    await Runner.run(planner_agent, "Create a function to calculate Fibonacci numbers.")  # Example usage
+
+
+if __name__ == "__main__":
+    # This is just for testing the agent creation
+    planner_agent = create_planner_agent()
+    print(f"Created {planner_agent.name} with instructions: {planner_agent.instructions}")
+    # You can add more tests or run the agent in a loop as needed
+    # Note: The actual agent execution and interaction would typically be handled
+    # by a higher-level orchestration script or framework.
+    asyncio.run(main())  # Run the main function to test the planner agent
