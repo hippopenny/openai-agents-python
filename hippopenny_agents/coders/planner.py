@@ -1,7 +1,16 @@
+import os # Import os for environment variables if needed directly, or rely on aider module
+
 from agents import Agent, function_tool
+# Import the provider and config constants
+from agents.models.hippopenny_aider import HippoPennyAiderModelProvider
 from agents.run_context import RunContextWrapper
 
-from .aider import create_aider_agent # Import aider for handoff definition
+from .aider import (
+    AIDER_MODEL_NAME,
+    AIDER_PROXY_API_KEY,
+    AIDER_PROXY_BASE_URL,
+    create_aider_agent,
+)
 from .context import CoderContext, Task
 
 
@@ -89,12 +98,22 @@ def create_planner_agent() -> Agent[CoderContext]:
     # even if direct handoff isn't the primary flow.
     aider_agent = create_aider_agent()
 
+    # Configure the HippoPennyAiderModelProvider for the planner
+    # Using the same proxy settings as the aider agent
+    planner_model_provider = HippoPennyAiderModelProvider(
+        base_url=AIDER_PROXY_BASE_URL,
+        api_key=AIDER_PROXY_API_KEY,
+        # You might want a different model for planning, e.g., a faster/cheaper one
+        # model=os.environ.get("PLANNER_MODEL_NAME", AIDER_MODEL_NAME),
+        model=AIDER_MODEL_NAME, # Using the same model for now
+    )
+
+
     planner_agent = Agent[CoderContext](
         name="PlannerAgent",
+        model=planner_model_provider, # Use the provider instance
         instructions=PLANNER_INSTRUCTIONS,
         tools=[update_task_status, add_task, get_tasks],
         handoffs=[aider_agent],
-        # Consider using a cheaper/faster model for planning if appropriate
-        # model="o3-mini",
     )
     return planner_agent
