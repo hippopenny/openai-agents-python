@@ -94,6 +94,16 @@ def get_tasks(context: RunContextWrapper[CoderContext]) -> str:
     return f"Current Tasks:\n{task_list_str}"
 
 
+@function_tool
+def dummy_cmd_to_run(context: RunContextWrapper[CoderContext], name: str, parameters: dict, description: str | None = None) -> str:
+    """
+    A dummy tool to catch unexpected 'cmd_to_run' calls from the underlying model/proxy.
+    This tool does nothing except acknowledge the call.
+    """
+    print(f"Warning: PlannerAgent received unexpected 'cmd_to_run' tool call for command '{name}'. Ignoring.")
+    return f"Acknowledged unexpected tool call 'cmd_to_run' for command '{name}'. No action taken by PlannerAgent."
+
+
 def create_planner_agent() -> Agent[CoderContext]:
     """Creates the planner agent."""
     # Define aider agent here primarily so it can be listed in handoffs,
@@ -109,7 +119,7 @@ def create_planner_agent() -> Agent[CoderContext]:
         name="PlannerAgent",
         model=planner_model, # Pass the actual model instance
         instructions=PLANNER_INSTRUCTIONS,
-        tools=[update_task_status, add_task, get_tasks],
+        tools=[update_task_status, add_task, get_tasks, dummy_cmd_to_run], # Add the dummy tool
         # Refer to the handoff agent by its name
         handoffs=["AiderAgent"],
     )
