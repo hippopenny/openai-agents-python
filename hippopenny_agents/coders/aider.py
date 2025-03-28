@@ -1,8 +1,8 @@
 import os
 
 from agents import Agent
-from agents.models.openai_responses import OpenAIResponsesModel
-from openai import AsyncOpenAI
+# Assuming the provider is located here. Please verify this path.
+from agents.models.hippopenny_aider import HippoPennyAiderModelProvider
 
 from .context import CoderContext
 
@@ -33,22 +33,18 @@ AIDER_MODEL_NAME = os.environ.get("AIDER_MODEL_NAME", "gpt-4o") # Model served b
 
 
 def create_aider_agent() -> Agent[CoderContext]:
-    """Creates the aider agent configured to use the OpenAI proxy."""
+    """Creates the aider agent configured to use the HippoPennyAiderModelProvider."""
 
-    # Configure the OpenAI client to point to your proxy server
-    proxied_openai_client = AsyncOpenAI(
+    # Configure the HippoPennyAiderModelProvider
+    # It likely takes similar arguments for proxy configuration
+    aider_model_provider = HippoPennyAiderModelProvider(
         base_url=AIDER_PROXY_BASE_URL,
         api_key=AIDER_PROXY_API_KEY,
-    )
-
-    # Use the proxied client with the OpenAIResponsesModel
-    aider_model = OpenAIResponsesModel(
         model=AIDER_MODEL_NAME,
-        openai_client=proxied_openai_client,
     )
 
     aider_agent = Agent[CoderContext](
-        model=aider_model,
+        model=aider_model_provider, # Use the provider instance directly
         instructions=AIDER_INSTRUCTIONS,
         name="AiderAgent", # Give the agent a name
         # Add tools specific to the coder if needed (e.g., file system access tools)
