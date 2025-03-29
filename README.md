@@ -187,3 +187,9 @@ For an agent to work with any agents remotely, we need to just do 2 things:
 
 2. Make sure to augment system prompt of a remote agent with capabilities to do handoffs, etc. --- probably tool callings is already doing it, but we may need to add prompts if proxy llm model doesn't handle tool callings well.
 
+## Remote function runs
+We implement openai proxy server to handle functions that are to be run on server side outside of LLM. 
+
+1. A client or an agent can add the tools to its tools or tool_calls sections (see hippopenny_agents/coders/planner.cmd_clear).
+
+2. Proxy server in its chat_completions function filters out these tools and processes them before calling to LLM (not including them in LLM messages).
