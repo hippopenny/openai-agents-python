@@ -41,7 +41,7 @@ def create_aider_agent() -> Agent[CoderContext]:
 
     # Get the actual model instance from the provider
     # Assuming a .get_model() method exists. Adjust if the method name is different.
-    aider_model = aider_model_provider.get_model()
+    aider_model = aider_model_provider.get_model("aider")
 
     aider_agent = Agent[CoderContext](
         model=aider_model, # Pass the actual model instance

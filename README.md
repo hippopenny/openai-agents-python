@@ -178,3 +178,12 @@ We'd like to acknowledge the excellent work of the open-source community, especi
 -   [uv](https://github.com/astral-sh/uv) and [ruff](https://github.com/astral-sh/ruff)
 
 We're committed to continuing to build the Agents SDK as an open source framework so others in the community can expand on our approach.
+
+
+
+## Remote agents
+For an agent to work with any agents remotely, we need to just do 2 things:
+1. Proxy openai server that will handle all agent LLM and agumented functionalities.
+
+2. Make sure to augment system prompt of a remote agent with capabilities to do handoffs, etc. --- probably tool callings is already doing it, but we may need to add prompts if proxy llm model doesn't handle tool callings well.
+

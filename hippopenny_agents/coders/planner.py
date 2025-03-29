@@ -17,26 +17,27 @@ from .context import CoderContext, Task
 
 
 # Refined instructions
-PLANNER_INSTRUCTIONS = """
-You are a planning agent responsible for breaking down a user's coding request into a series of actionable tasks for a coder agent named 'aider'.
+PLANNER_INSTRUCTIONS = "" 
+# """
+# You are a planning agent responsible for breaking down a user's coding request into a series of actionable tasks for a coder agent named 'aider'.
 
-Your primary goal is to create an initial plan.
+# Your primary goal is to create an initial plan.
 
-1.  **Analyze Request:** Understand the user's coding request provided in the `initial_request` field of the context.
-2.  **Create Tasks:** Generate a sequence of specific, actionable coding tasks. Use the `add_task` tool *repeatedly* to add each task to the plan. Ensure tasks are well-defined and can be executed independently by the 'aider' agent.
-3.  **Task Granularity:** Break down complex requests into smaller, manageable steps.
-4.  **Replanning (If Necessary):** If you are invoked later and the context contains tasks marked as 'failed', analyze the `error_message` for the failed task(s). You may need to use `add_task` to create new corrective tasks or potentially use `update_task_status` to modify an existing task's description and reset its status if a simple retry with adjustment is feasible.
+# 1.  **Analyze Request:** Understand the user's coding request provided in the `initial_request` field of the context.
+# 2.  **Create Tasks:** Generate a sequence of specific, actionable coding tasks. Use the `add_task` tool *repeatedly* to add each task to the plan. Ensure tasks are well-defined and can be executed independently by the 'aider' agent.
+# 3.  **Task Granularity:** Break down complex requests into smaller, manageable steps.
+# 4.  **Replanning (If Necessary):** If you are invoked later and the context contains tasks marked as 'failed', analyze the `error_message` for the failed task(s). You may need to use `add_task` to create new corrective tasks or potentially use `update_task_status` to modify an existing task's description and reset its status if a simple retry with adjustment is feasible.
 
-**Available Tools:**
-*   `add_task(description: str)`: Adds a new task to the end of the list. Use this for *all* initial task creation.
-*   `get_tasks()`: Retrieves the current task list and statuses. Useful for context during replanning.
-*   `update_task_status(task_id: int, status: str, result: str | None = None)`: Use *sparingly* during replanning to modify an existing task's status or result. The main control loop handles standard `in_progress`, `completed`, `failed` updates.
+# **Available Tools:**
+# *   `add_task(description: str)`: Adds a new task to the end of the list. Use this for *all* initial task creation.
+# *   `get_tasks()`: Retrieves the current task list and statuses. Useful for context during replanning.
+# *   `update_task_status(task_id: int, status: str, result: str | None = None)`: Use *sparingly* during replanning to modify an existing task's status or result. The main control loop handles standard `in_progress`, `completed`, `failed` updates.
 
-**Handoffs:**
-*   You can theoretically hand off to `aider_agent` if complex interaction is needed, but the standard flow involves the orchestrator calling aider for each task.
+# **Handoffs:**
+# *   You can theoretically hand off to `aider_agent` if complex interaction is needed, but the standard flow involves the orchestrator calling aider for each task.
 
-Start by creating the initial task list based on the user's request. Do not execute the tasks yourself.
-"""
+# Start by creating the initial task list based on the user's request. Do not execute the tasks yourself.
+# """
 
 
 @function_tool
@@ -95,13 +96,29 @@ def get_tasks(context: RunContextWrapper[CoderContext]) -> str:
 
 
 @function_tool
-def dummy_cmd_to_run(context: RunContextWrapper[CoderContext], name: str, parameters: dict, description: str | None = None) -> str:
+def cmd_web(context: RunContextWrapper[CoderContext], 
+            args="https://www.hippopenny.com/games/snake/") -> str:
     """
-    A dummy tool to catch unexpected 'cmd_to_run' calls from the underlying model/proxy.
-    This tool does nothing except acknowledge the call.
+    An aider tool that is executed on aider server before llm runs.
+    These tools won't be included in messages to llm.
+
+    Args:
+        args: the url to be scraped.
     """
-    print(f"Warning: PlannerAgent received unexpected 'cmd_to_run' tool call for command '{name}'. Ignoring.")
-    return f"Acknowledged unexpected tool call 'cmd_to_run' for command '{name}'. No action taken by PlannerAgent."
+    return f"Unexpected: received aider tool call cmd_. These tools should be run on server. No action taken here."
+
+
+@function_tool
+def cmd_clear(context: RunContextWrapper[CoderContext], 
+            args="") -> str:
+    """
+    An aider tool that is executed on aider server before llm runs.
+    These tools won't be included in messages to llm.
+
+    Args:
+        args: it's required to have a value.
+    """
+    return f"Unexpected: received aider tool call cmd_. These tools should be run on server. No action taken here."
 
 
 def create_planner_agent() -> Agent[CoderContext]:
@@ -119,7 +136,7 @@ def create_planner_agent() -> Agent[CoderContext]:
         name="PlannerAgent",
         model=planner_model, # Pass the actual model instance
         instructions=PLANNER_INSTRUCTIONS,
-        tools=[update_task_status, add_task, get_tasks, dummy_cmd_to_run], # Add the dummy tool
+        tools=[update_task_status, add_task, get_tasks, cmd_web, cmd_clear], # Add the dummy tool
         # Refer to the handoff agent by its name
         handoffs=["AiderAgent"],
     )
