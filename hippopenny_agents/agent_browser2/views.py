@@ -7,18 +7,33 @@ from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from browser_use.browser.views import BrowserState, BrowserStateHistory
-from browser_use.dom.history_tree_processor.service import (
-    DOMElementNode,
-    DOMHistoryElement,
-    HistoryTreeProcessor,
-)
-from browser_use.dom.views import SelectorMap
+# Removed imports from browser_use.*
 
+# --- Placeholder definitions for removed browser_use types ---
+
+@dataclass
+class ActionResult:
+    """Placeholder for browser_use.agent.views.ActionResult."""
+    is_done: Optional[bool] = False
+    extracted_content: Optional[str] = None
+    error: Optional[str] = None
+    include_in_memory: bool = False
+
+class BrowserStateHistory(BaseModel):
+    """Placeholder for browser_use.browser.views.BrowserStateHistory."""
+    model_config = ConfigDict(extra='allow') # Allow arbitrary fields for now
+    url: Optional[str] = None
+    title: Optional[str] = None
+    tabs: Optional[List[str]] = None
+    screenshot: Optional[str] = None # Assuming base64 string
+    # Add other fields like interacted_element if needed by history processing
+
+    def to_dict(self) -> Dict[str, Any]:
+        # Simple dict conversion for placeholder
+        return self.model_dump(exclude_none=True)
 
 # --- Tool Input Models ---
-# These models define the parameters for each browser action tool.
-# They mirror the structure previously expected within the 'action' list.
+# (These remain unchanged as they are just Pydantic models)
 
 class GoToURLParams(BaseModel):
     url: str = Field(..., description='The URL to navigate to.')
@@ -90,17 +105,6 @@ class PlannerOutput(BaseModel):
     reasoning: str = Field(description="Explain the reasoning for the suggested next steps.")
 
 
-# --- Action Result ---
-# Reusing the original ActionResult for simplicity.
-@dataclass
-class ActionResult:
-    """Result of executing an action tool."""
-    is_done: Optional[bool] = False
-    extracted_content: Optional[str] = None
-    error: Optional[str] = None
-    include_in_memory: bool = False  # whether to include in past messages as context or not
-
-
 # --- History Tracking ---
 
 class AgentHistory(BaseModel):
@@ -111,7 +115,7 @@ class AgentHistory(BaseModel):
     agent_state_update: Optional[AgentStateUpdate] = None
     tool_calls: List[Dict[str, Any]] = Field(default_factory=list) # Store tool call details {tool_name: params}
     tool_results: List[ActionResult] = Field(default_factory=list) # Store results corresponding to tool_calls
-    browser_state: BrowserStateHistory # The browser state *before* the actions were taken
+    browser_state: BrowserStateHistory # The browser state *before* the actions were taken (using placeholder)
     plan: Optional[PlannerOutput | str] = None # Store the plan generated during this step (if any)
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
@@ -125,8 +129,8 @@ class AgentHistory(BaseModel):
         return {
             'agent_state_update': self.agent_state_update.model_dump() if self.agent_state_update else None,
             'tool_calls': self.tool_calls, # Already dicts
-            'tool_results': [r.__dict__ for r in self.tool_results], # Simple dict conversion for dataclass
-            'browser_state': self.browser_state.to_dict(),
+            'tool_results': [r.__dict__ for r in self.tool_results], # Simple dict conversion for placeholder dataclass
+            'browser_state': self.browser_state.to_dict(), # Use placeholder's method
             'plan': plan_dump,
         }
 
@@ -161,16 +165,18 @@ class AgentHistoryList(BaseModel):
         history_items = []
         for h_data in data.get('history', []):
             state_update = AgentStateUpdate.model_validate(h_data['agent_state_update']) if h_data.get('agent_state_update') else None
-            browser_state_hist = BrowserStateHistory(**h_data['browser_state'])
+            # Use placeholder BrowserStateHistory
+            browser_state_hist = BrowserStateHistory(**h_data.get('browser_state', {}))
+            # Use placeholder ActionResult
             tool_results = [ActionResult(**res_data) for res_data in h_data.get('tool_results', [])]
 
-            # Load plan
+            # Load plan (same logic as before)
             plan_data = h_data.get('plan')
             plan = None
             if isinstance(plan_data, dict):
                 try:
                     plan = PlannerOutput.model_validate(plan_data)
-                except Exception: # Fallback to string if validation fails
+                except Exception:
                     plan = json.dumps(plan_data)
             elif isinstance(plan_data, str):
                 plan = plan_data
@@ -185,6 +191,7 @@ class AgentHistoryList(BaseModel):
         return cls(history=history_items)
 
     # --- Helper methods to query history ---
+    # (These methods remain largely the same, relying on the structure of AgentHistory)
 
     def errors(self) -> list[str]:
         """Get all errors from history"""
@@ -197,9 +204,11 @@ class AgentHistoryList(BaseModel):
         """Final result from history (assuming 'done' tool provides it)"""
         if self.history:
             last_history = self.history[-1]
+            # Check if 'done' was called (assuming tool_calls structure is maintained)
             if last_history.tool_calls and last_history.tool_calls[-1].get('done'):
                  if len(last_history.tool_results) == len(last_history.tool_calls):
                      last_result = last_history.tool_results[-1]
+                     # Assuming 'done' stores its answer in extracted_content
                      return last_result.extracted_content
         return None
 
@@ -209,6 +218,7 @@ class AgentHistoryList(BaseModel):
             last_history = self.history[-1]
             if last_history.tool_calls and last_history.tool_calls[-1].get('done'):
                 if len(last_history.tool_results) == len(last_history.tool_calls):
+                    # Assuming 'done' sets is_done flag in its result
                     return last_history.tool_results[-1].is_done or False
         return False
 
@@ -218,10 +228,12 @@ class AgentHistoryList(BaseModel):
 
     def urls(self) -> list[str]:
         """Get all unique URLs from history"""
+        # Uses placeholder BrowserStateHistory
         return list(set(h.browser_state.url for h in self.history if h.browser_state and h.browser_state.url))
 
     def screenshots(self) -> list[str]:
         """Get all screenshots from history"""
+         # Uses placeholder BrowserStateHistory
         return [h.browser_state.screenshot for h in self.history if h.browser_state and h.browser_state.screenshot]
 
     def action_names(self) -> list[str]:
@@ -246,3 +258,4 @@ class AgentHistoryList(BaseModel):
     def plans(self) -> list[PlannerOutput | str | None]:
         """Get all plans generated during the run."""
         return [h.plan for h in self.history]
+

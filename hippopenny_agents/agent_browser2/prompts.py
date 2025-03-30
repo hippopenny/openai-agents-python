@@ -1,30 +1,30 @@
 import datetime
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional # Added Any, Dict
+from typing import Any, Dict, List, Optional
 
-from langchain_core.messages import HumanMessage, SystemMessage
+# Removed imports from langchain_core, agents, browser_use
 
-from agents import RunContextWrapper
+# Placeholder types for BrowserState and AgentStepInfo if needed, or assume dicts
+# For simplicity, we'll assume BrowserState is passed as a dict-like object
+# and AgentStepInfo is also dict-like or has simple attributes.
 
-from browser_use.agent.views import ActionResult, AgentStepInfo
-from browser_use.browser.views import BrowserState
-
-from .context import BrowserAgentContext
-from .views import PlannerOutput
+from .context import BrowserAgentContext # Keep context import for type hints if needed
+from .views import PlannerOutput, ActionResult # Keep view imports
 
 
 class SystemPromptBuilder:
-    """Builds the system prompt for the main browser agent."""
+    """Builds the system prompt string for the main browser agent."""
     def __init__(self, action_description: str, max_actions_per_step: int = 10):
         self.default_action_description = action_description
         self.max_actions_per_step = max_actions_per_step
 
     def important_rules(self) -> str:
         """
-        Returns the important rules for the agent. Adapted for tool usage.
+        Returns the important rules string for the agent.
+        NOTE: Assumes the agent consuming this will understand 'tools' conceptually.
         """
-        # This is largely the same as the previous version, emphasizing tool order.
+        # The text remains the same, describing the intended behavior.
         text = """
 IMPORTANT RULES:
 
@@ -74,7 +74,7 @@ IMPORTANT RULES:
         return text
 
     def input_format(self) -> str:
-        # Describes the format of the HumanMessage constructed by AgentMessagePrompt
+        # Describes the intended format of the input message content.
         return """
 INPUT STRUCTURE (Provided in the User Message):
 0. (Optional) Current Plan: High-level plan with analysis, progress, challenges, and next steps.
@@ -100,6 +100,7 @@ INPUT STRUCTURE (Provided in the User Message):
         """
         Get the system prompt content string for the main browser agent.
         """
+        # Tool descriptions would need to be manually added or handled by the calling framework.
         agent_prompt = f"""You are a precise browser automation agent. Your goal is to accomplish the user's task:
 TASK: {task}
 
@@ -114,18 +115,19 @@ Remember:
 - Then, call the necessary browser action tool(s) to execute your plan.
 - Base your decisions on the provided plan (if any), elements, screenshot (if available), and task history (implicitly in memory).
 """
+        # Append tool descriptions if available/needed
+        # agent_prompt += f"\n\nAVAILABLE TOOLS:\n{self.default_action_description}"
         return agent_prompt
 
 
 class PlannerPromptBuilder:
-    """Builds the system prompt for the planner LLM."""
+    """Builds the system prompt string for the planner LLM."""
     def __init__(self, action_description: str = ""):
-        # Action description might not be needed for planner, but kept for consistency
         self.action_description = action_description
 
     def get_system_message_content(self) -> str:
         """Get the system prompt content string for the planner."""
-        # This prompt is taken directly from the original PlannerPrompt logic
+        # This prompt text remains the same.
         content = """You are a planning agent that helps break down tasks into smaller steps and reason about the current state.
 Your role is to:
 1. Analyze the current state and history provided in the messages.
@@ -149,44 +151,70 @@ Keep your analysis concise and focused on actionable insights to guide the brows
 
 
 class AgentMessagePrompt:
-    """Formats the current browser state, results, and plan into a HumanMessage."""
+    """Formats the current browser state, results, and plan into input content (string or list)."""
     def __init__(
         self,
-        state: BrowserState,
-        result: Optional[List[ActionResult]] = None,
-        plan: Optional[PlannerOutput | str] = None, # Add plan
+        state: Any, # Changed BrowserState to Any
+        result: Optional[List[ActionResult]] = None, # Uses placeholder ActionResult
+        plan: Optional[PlannerOutput | str] = None,
         include_attributes: list[str] = [],
         max_error_length: int = 400,
-        step_info: Optional[AgentStepInfo] = None,
+        step_info: Optional[Any] = None, # Changed AgentStepInfo to Any
     ):
-        self.state = state
+        self.state = state # Assume state is dict-like or has expected attributes
         self.result = result or []
-        self.plan = plan # Store the plan
+        self.plan = plan
         self.max_error_length = max_error_length
         self.include_attributes = include_attributes
-        self.step_info = step_info
+        self.step_info = step_info # Assume step_info has step_number, max_steps
 
     def get_user_message_content(self, use_vision: bool = True) -> list | str:
-        """Constructs the content for the HumanMessage input to the agent."""
-        elements_text = self.state.element_tree.clickable_elements_to_string(include_attributes=self.include_attributes)
+        """Constructs the content for the user message input."""
+        # Attempt to access state attributes, assuming dict-like or object access
+        try:
+            # This part is highly dependent on the actual structure of 'state'
+            # Assuming state has 'element_tree' with 'clickable_elements_to_string' method
+            # This will likely fail without the actual BrowserState object.
+            # We'll wrap in try-except and provide a fallback.
+            elements_text = getattr(getattr(self.state, 'element_tree', None), 'clickable_elements_to_string', lambda **kw: "[Element tree unavailable]")(include_attributes=self.include_attributes)
+            pixels_above = getattr(self.state, 'pixels_above', 0)
+            pixels_below = getattr(self.state, 'pixels_below', 0)
+            current_url = getattr(self.state, 'url', "[URL unavailable]")
+            available_tabs = getattr(self.state, 'tabs', "[Tabs unavailable]")
+            screenshot = getattr(self.state, 'screenshot', None) # Base64 string
+        except AttributeError:
+            elements_text = "[Element tree unavailable]"
+            pixels_above = 0
+            pixels_below = 0
+            current_url = "[URL unavailable]"
+            available_tabs = "[Tabs unavailable]"
+            screenshot = None
 
-        # Add scroll indicators (same as before)
-        has_content_above = (self.state.pixels_above or 0) > 0
-        has_content_below = (self.state.pixels_below or 0) > 0
-        if elements_text:
-            if has_content_above: elements_text = f'... {self.state.pixels_above} pixels above - scroll or extract content to see more ...\n{elements_text}'
+        # Add scroll indicators
+        has_content_above = (pixels_above or 0) > 0
+        has_content_below = (pixels_below or 0) > 0
+        if elements_text and elements_text != "[Element tree unavailable]":
+            if has_content_above: elements_text = f'... {pixels_above} pixels above - scroll or extract content to see more ...\n{elements_text}'
             else: elements_text = f'[Start of page]\n{elements_text}'
-            if has_content_below: elements_text = f'{elements_text}\n... {self.state.pixels_below} pixels below - scroll or extract content to see more ...'
+            if has_content_below: elements_text = f'{elements_text}\n... {pixels_below} pixels below - scroll or extract content to see more ...'
             else: elements_text = f'{elements_text}\n[End of page]'
-        else: elements_text = '[Page appears empty or no interactive elements found]'
+        elif not elements_text:
+             elements_text = '[Page appears empty or no interactive elements found]'
 
-        # Step and time info (same as before)
+        # Step and time info
         step_info_description = ''
-        if self.step_info: step_info_description = f'Current step: {self.step_info.step_number + 1}/{self.step_info.max_steps}\n'
+        if self.step_info:
+            try:
+                step_num = getattr(self.step_info, 'step_number', -1) + 1
+                max_steps = getattr(self.step_info, 'max_steps', -1)
+                step_info_description = f'Current step: {step_num}/{max_steps}\n'
+            except AttributeError:
+                 step_info_description = '[Step info unavailable]\n'
+
         time_str = datetime.now().strftime('%Y-%m-%d %H:%M')
         step_info_description += f'Current date and time: {time_str}'
 
-        # Format previous action results (same as before)
+        # Format previous action results (uses placeholder ActionResult)
         prev_results_text = "[No previous actions in this run]"
         if self.result:
             prev_results_parts = []
@@ -199,40 +227,38 @@ class AgentMessagePrompt:
                 prev_results_parts.append(part)
             prev_results_text = "\n".join(prev_results_parts)
 
-        # Format the plan (New)
+        # Format the plan
         plan_text = "[No plan provided for this step]"
         if self.plan:
             if isinstance(self.plan, PlannerOutput):
                 try:
-                    # Pretty print the JSON plan
                     plan_text = f"[Current Plan]\n{json.dumps(self.plan.model_dump(), indent=2)}"
                 except Exception:
-                    plan_text = f"[Current Plan]\n{str(self.plan)}" # Fallback
-            else: # If plan is just a string
+                    plan_text = f"[Current Plan]\n{str(self.plan)}"
+            else:
                 plan_text = f"[Current Plan]\n{self.plan}"
 
-        # Combine into state description, adding the plan first
+        # Combine into state description
         state_description = f"""{plan_text}
 
 {prev_results_text}
 
 [Current Page State]
-URL: {self.state.url}
-Available Tabs: {self.state.tabs}
+URL: {current_url}
+Available Tabs: {available_tabs}
 Interactive Elements:
 {elements_text}
 
 {step_info_description}
 """
-        # Prepare content for HumanMessage (text + optional image)
+        # Prepare content for message (text + optional image)
         message_content: list[Dict[str, Any]] = [{'type': 'text', 'text': state_description}]
 
-        if self.state.screenshot and use_vision:
+        if screenshot and use_vision:
             message_content.append({
                 'type': 'image_url',
-                'image_url': {'url': f'data:image/png;base64,{self.state.screenshot}'},
+                'image_url': {'url': f'data:image/png;base64,{screenshot}'},
             })
             return message_content # Return list for vision models
         else:
-            # If not using vision or no screenshot, return only the text string
-            return state_description
+            return state_description # Return only the text string
