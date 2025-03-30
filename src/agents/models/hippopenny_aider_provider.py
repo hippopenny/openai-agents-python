@@ -22,11 +22,10 @@ MODEL_NAME = os.getenv("HIPPOPENNY_AIDER_MODEL_NAME") or "aider"
 2. Create a ModelProvider that uses the custom client.
 """
 
-client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
-set_tracing_disabled(disabled=True)
-
-
 class HippoPennyAiderModelProvider(ModelProvider):
+    set_tracing_disabled(disabled=True)
     def get_model(self, model_name: str | None) -> Model:
-        return OpenAIChatCompletionsModel(model=model_name or MODEL_NAME, openai_client=client)
+        return OpenAIChatCompletionsModel(model=model_name or MODEL_NAME, 
+                                          openai_client=AsyncOpenAI(base_url=BASE_URL, 
+                                                                    api_key=API_KEY))
 

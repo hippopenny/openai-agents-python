@@ -66,7 +66,7 @@ async def run_aider(project_goal: str, max_turns: int = 15) -> Tuple[ProjectCont
     code_task_tool = create_code_task_tool(CoderAgent)
     # Planner Agent needs all tools now
     planner_agent_with_tools = PlannerAgent.clone(
-        tools=[plan_initial_tasks, code_task_tool, add_task, modify_task]
+        tools=[code_task_tool]
     )
 
     final_planner_message = "Aider run did not complete."

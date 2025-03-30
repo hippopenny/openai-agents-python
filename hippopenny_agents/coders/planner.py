@@ -31,7 +31,7 @@ def update_task_status(
         result: Any output or result message from the coder for this task.
     """
     task_found = False
-    for task in context.actual_context.tasks:
+    for task in context.tasks:
         if task.id == task_id:
             task.status = status
             task.result = result
@@ -51,7 +51,7 @@ def add_task(context: RunContextWrapper[CoderContext], description: str) -> str:
         description: The description of the new task.
     """
     new_task_id = (
-        max(task.id for task in context.actual_context.tasks) + 1
+        max(task.id for task in context.tasks) + 1
         if context.actual_context.tasks
         else 1
     )

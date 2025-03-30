@@ -13,7 +13,7 @@ class CoderOutput(BaseModel):
 # Note: The actual implementation logic (code generation) is handled by the LLM based on the prompt.
 # This agent definition primarily sets up the instructions and expected output format.
 CoderAgent = Agent(
-    name="CoderAgent",
+    name="aider",
     instructions=(
         "You are a skilled software engineer. You will be given a single, specific task description. "
         "Your goal is to implement this task. "
