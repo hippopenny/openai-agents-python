@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional # Added Callable, Dict
 
 # Removed imports from agents, langchain_core
 
