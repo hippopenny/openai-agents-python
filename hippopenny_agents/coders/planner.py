@@ -4,6 +4,8 @@ import os # Import os for environment variables if needed directly, or rely on a
 from agents import Agent, function_tool
 # Import the provider and config constants
 from agents.models.hippopenny_aider_provider import HippoPennyAiderModelProvider
+from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+from agents.models.openai_provider import OpenAIProvider
 from agents.run import Runner
 from agents.run_context import RunContextWrapper
 
@@ -11,33 +13,9 @@ from .aider import (
     AIDER_MODEL_NAME,
     AIDER_PROXY_API_KEY,
     AIDER_PROXY_BASE_URL,
-    create_aider_agent,
 )
 from .context import CoderContext, Task
-
-
-# Refined instructions
-PLANNER_INSTRUCTIONS = "" 
-# """
-# You are a planning agent responsible for breaking down a user's coding request into a series of actionable tasks for a coder agent named 'aider'.
-
-# Your primary goal is to create an initial plan.
-
-# 1.  **Analyze Request:** Understand the user's coding request provided in the `initial_request` field of the context.
-# 2.  **Create Tasks:** Generate a sequence of specific, actionable coding tasks. Use the `add_task` tool *repeatedly* to add each task to the plan. Ensure tasks are well-defined and can be executed independently by the 'aider' agent.
-# 3.  **Task Granularity:** Break down complex requests into smaller, manageable steps.
-# 4.  **Replanning (If Necessary):** If you are invoked later and the context contains tasks marked as 'failed', analyze the `error_message` for the failed task(s). You may need to use `add_task` to create new corrective tasks or potentially use `update_task_status` to modify an existing task's description and reset its status if a simple retry with adjustment is feasible.
-
-# **Available Tools:**
-# *   `add_task(description: str)`: Adds a new task to the end of the list. Use this for *all* initial task creation.
-# *   `get_tasks()`: Retrieves the current task list and statuses. Useful for context during replanning.
-# *   `update_task_status(task_id: int, status: str, result: str | None = None)`: Use *sparingly* during replanning to modify an existing task's status or result. The main control loop handles standard `in_progress`, `completed`, `failed` updates.
-
-# **Handoffs:**
-# *   You can theoretically hand off to `aider_agent` if complex interaction is needed, but the standard flow involves the orchestrator calling aider for each task.
-
-# Start by creating the initial task list based on the user's request. Do not execute the tasks yourself.
-# """
+from .prompts import PlannerPrompt
 
 
 @function_tool
@@ -123,34 +101,28 @@ def cmd_clear(context: RunContextWrapper[CoderContext],
 
 def create_planner_agent() -> Agent[CoderContext]:
     """Creates the planner agent."""
-    # Define aider agent here primarily so it can be listed in handoffs,
-    # Configure the HippoPennyAiderModelProvider for the planner
-    # It takes no arguments, presumably reads config from environment or defaults
+   
     planner_model_provider = HippoPennyAiderModelProvider()
-
-    # Get the actual model instance from the provider
-    # Assuming a .get_model() method exists. Adjust if the method name is different.
     planner_model = planner_model_provider.get_model("aider")
-
+    planner_model_provider = OpenAIProvider()
+    planner_model = planner_model_provider.get_model("gpt-4o-mini")
+    prompt = PlannerPrompt()  # Create an instance of the PlannerPrompt to get the system message
     planner_agent = Agent[CoderContext](
         name="PlannerAgent",
         model=planner_model, # Pass the actual model instance
-        instructions=PLANNER_INSTRUCTIONS,
-        tools=[update_task_status, add_task, get_tasks, cmd_web, cmd_clear], # Add the dummy tool
-        # Refer to the handoff agent by its name
-        handoffs=["AiderAgent"],
+        instructions=prompt.get_system_message(),  # Use the PlannerPrompt to get the system message
+        # tools=[update_task_status, add_task, get_tasks], # cmd_web, cmd_clear], 
     )
     return planner_agent
 
-async def main():
-    await Runner.run(planner_agent, "Create a function to calculate Fibonacci numbers.")  # Example usage
+async def main(prompt: str):
+    res = await Runner.run(planner_agent, prompt) 
+    print(res.final_output)
 
 
 if __name__ == "__main__":
     # This is just for testing the agent creation
+    prompt = input("Enter your coding request: ")
+    print(f"the prompt is: {prompt}")
     planner_agent = create_planner_agent()
-    print(f"Created {planner_agent.name} with instructions: {planner_agent.instructions}")
-    # You can add more tests or run the agent in a loop as needed
-    # Note: The actual agent execution and interaction would typically be handled
-    # by a higher-level orchestration script or framework.
-    asyncio.run(main())  # Run the main function to test the planner agent
+    asyncio.run(main(prompt))  # Run the main function to test the planner agent
