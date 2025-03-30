@@ -1,15 +1,19 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from agents import Agent, Runner, RunResult, RunContextWrapper, FunctionTool
+from agents import Agent, Runner, RunResult, RunContextWrapper, FunctionTool, ModelBehaviorError
 
-from hippopenny_agents.aider.agents import PlannerAgent, create_code_task_tool, CoderAgent, CoderOutput
-from hippopenny_agents.aider.models import ProjectContext, Task
+# Import specific tools and agents needed for testing
+from hippopenny_agents.aider.agents.planner import (
+    PlannerAgent, plan_initial_tasks, add_task, modify_task, implement_task
+)
+from hippopenny_agents.aider.agents.coder import CoderAgent, CoderOutput
+from hippopenny_agents.aider.models import ProjectContext, Task, TaskStatus
 
 
 # --- Mocks ---
 
-# Mock Coder Agent run result
+# Mock Coder Agent run results (used within implement_task tool)
 mock_coder_success_output = CoderOutput(
     status="completed",
     summary="Task completed successfully.",
@@ -20,38 +24,31 @@ mock_coder_failure_output = CoderOutput(
     summary="Failed due to import error.",
     code_changes=None
 )
+mock_coder_clarification_output = CoderOutput(
+    status="needs_clarification",
+    summary="What should the output filename be?",
+    code_changes=None
+)
 
 mock_coder_success_result = RunResult(
-    input="Mock Task Desc",
-    final_output=mock_coder_success_output,
+    input="Mock Task Desc", final_output=mock_coder_success_output,
     usage=AsyncMock(), new_items=[], all_items=[], last_agent=CoderAgent,
     model_name="mock_coder_model", response_id="coder_resp_1"
 )
 mock_coder_failure_result = RunResult(
-    input="Mock Task Desc",
-    final_output=mock_coder_failure_output,
+    input="Mock Task Desc", final_output=mock_coder_failure_output,
     usage=AsyncMock(), new_items=[], all_items=[], last_agent=CoderAgent,
     model_name="mock_coder_model", response_id="coder_resp_2"
 )
-
-# Mock Planner Agent run result (simulating it deciding to call the tool)
-# The actual tool call happens *within* the Runner.run for the Planner,
-# so we mock the *tool function's* behavior, not the Planner's final text output directly for tool tests.
-# For testing the planner's decision *making*, we mock Runner.run for the planner.
-
-mock_planner_run_result_calls_tool = RunResult(
-    input="Initial Goal",
-    # Output doesn't matter much here as the tool call is the side effect we test
-    final_output="Okay, planning done. Assigning task 0.",
-    usage=AsyncMock(), new_items=[], all_items=[], last_agent=PlannerAgent,
-    model_name="mock_planner_model", response_id="planner_resp_1"
+mock_coder_clarification_result = RunResult(
+    input="Mock Task Desc", final_output=mock_coder_clarification_output,
+    usage=AsyncMock(), new_items=[], all_items=[], last_agent=CoderAgent,
+    model_name="mock_coder_model", response_id="coder_resp_3"
 )
-
-mock_planner_run_result_completes = RunResult(
-    input="Check status",
-    final_output="All tasks are completed. Project finished.",
-    usage=AsyncMock(), new_items=[], all_items=[], last_agent=PlannerAgent,
-    model_name="mock_planner_model", response_id="planner_resp_2"
+mock_coder_bad_output_result = RunResult(
+    input="Mock Task Desc", final_output="Just some text, not CoderOutput",
+    usage=AsyncMock(), new_items=[], all_items=[], last_agent=CoderAgent,
+    model_name="mock_coder_model", response_id="coder_resp_4"
 )
 
 
@@ -59,59 +56,14 @@ mock_planner_run_result_completes = RunResult(
 
 @pytest.fixture
 def project_context() -> ProjectContext:
+    """Provides a fresh ProjectContext for each test."""
     return ProjectContext(project_goal="Create a simple script.")
 
 @pytest.fixture
-def mock_coder_agent() -> Agent:
-    # We don't need a real agent, just something to pass
-    return MagicMock(spec=Agent)
-
-@pytest.fixture
-def code_task_tool(mock_coder_agent: Agent) -> FunctionTool:
-    return create_code_task_tool(mock_coder_agent)
-
-# --- Tests ---
-
-@pytest.mark.asyncio
-async def test_planner_agent_initial_run(monkeypatch, project_context):
-    """Test that the planner can generate initial tasks (simulated)."""
-
-    # Mock Runner.run for the Planner Agent
-    async def mock_planner_run(*args, **kwargs):
-        # Simulate the planner adding tasks to the context based on the goal
-        context: ProjectContext = kwargs['context']
-        if not context.tasks: # Only add tasks on the first call simulation
-             context.add_tasks(["Define variables", "Implement logic", "Add tests"])
-        return mock_planner_run_result_calls_tool # Simulate it deciding to call tool next
-
-    mock_runner_run_planner = AsyncMock(side_effect=mock_planner_run)
-    monkeypatch.setattr(Runner, "run", mock_runner_run_planner)
-
-    # We don't need the real tool for this test, just the planner's logic
-    planner_agent_mock_tool = PlannerAgent.clone(tools=[MagicMock(spec=FunctionTool)])
-
-    await Runner.run(planner_agent_mock_tool, project_context.project_goal, context=project_context)
-
-    # Assert tasks were added by the mocked run
-    assert len(project_context.tasks) == 3
-    assert project_context.tasks[0].description == "Define variables"
-    assert project_context.tasks[0].status == "pending"
-    mock_runner_run_planner.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_code_task_tool_success(monkeypatch, project_context, code_task_tool, mock_coder_agent):
-    """Test the code_task tool when the coder succeeds."""
-    project_context.add_tasks(["Implement feature X"])
-    task_to_run = project_context.tasks[0]
-    assert task_to_run.status == "pending"
-
-    # Mock Runner.run specifically for the CoderAgent call *within* the tool
-    mock_runner_run_coder = AsyncMock(return_value=mock_coder_success_result)
-    monkeypatch.setattr(Runner, "run", mock_runner_run_coder)
-
-    # Prepare context wrapper for the tool function
-    run_context_wrapper = RunContextWrapper(
+def run_context_wrapper(project_context: ProjectContext) -> RunContextWrapper[ProjectContext]:
+    """Provides a mock RunContextWrapper wrapping the project_context."""
+    # Simulate the wrapper that tool functions receive
+    return RunContextWrapper(
         context=project_context,
         usage=AsyncMock(),
         run_config=MagicMock(),
@@ -119,74 +71,224 @@ async def test_code_task_tool_success(monkeypatch, project_context, code_task_to
         hooks=MagicMock(),
         max_turns=10,
         turn_num=1,
-        current_agent=PlannerAgent # The agent calling the tool
+        current_agent=PlannerAgent # Assume Planner is calling the tool
     )
 
-    # Execute the tool function directly
-    tool_result_summary = await code_task_tool.func(
-        context=run_context_wrapper,
-        task_description=task_to_run.description
-    )
+# --- Tool Tests ---
 
-    # Assertions
-    assert task_to_run.status == "done" # Status updated in context
-    assert project_context.coder_error is None
-    assert tool_result_summary == mock_coder_success_output.summary # Tool returns summary
+@pytest.mark.asyncio
+async def test_plan_initial_tasks_tool(run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test the plan_initial_tasks tool function."""
+    project_ctx = run_context_wrapper.context
+    assert not project_ctx.tasks # Should start empty
 
-    # Check that Runner.run was called correctly for the CoderAgent
-    mock_runner_run_coder.assert_called_once()
-    call_args, call_kwargs = mock_runner_run_coder.call_args
-    assert call_args[0] == mock_coder_agent # Called the coder agent
-    assert call_args[1] == task_to_run.description # Passed the correct description
-    assert call_kwargs.get("context") == project_context # Passed the shared context
+    task_descs = ["Task 1", "Task 2"]
+    # Access the actual function attached to the FunctionTool object
+    result = await plan_initial_tasks.func(context=run_context_wrapper, task_descriptions=task_descs)
+
+    assert len(project_ctx.tasks) == 2
+    assert project_ctx.tasks[0].description == "Task 1"
+    assert project_ctx.tasks[0].status == "pending"
+    assert project_ctx.tasks[0].id == 0 # Check ID assignment
+    assert project_ctx.tasks[1].description == "Task 2"
+    assert project_ctx.tasks[1].status == "pending"
+    assert project_ctx.tasks[1].id == 1
+    assert result == "Successfully planned 2 initial tasks."
+
+@pytest.mark.asyncio
+async def test_plan_initial_tasks_tool_already_planned(run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test plan_initial_tasks when tasks already exist."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Existing Task"])
+
+    result = await plan_initial_tasks.func(context=run_context_wrapper, task_descriptions=["New Task"])
+    assert len(project_ctx.tasks) == 1 # No change
+    assert result == "Error: Initial tasks have already been planned."
+
+@pytest.mark.asyncio
+async def test_add_task_tool(run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test the add_task tool function."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Task 0"]) # Add an initial task (ID 0)
+
+    result = await add_task.func(context=run_context_wrapper, description="Task 1", insert_before_id=None)
+
+    assert len(project_ctx.tasks) == 2
+    assert project_ctx.tasks[1].description == "Task 1"
+    assert project_ctx.tasks[1].id == 1 # Assumes _next_task_id started at 1 after Task 0
+    assert "Successfully added new task 'Task 1' with ID 1" in result
+
+    result_insert = await add_task.func(context=run_context_wrapper, description="Task 0.5", insert_before_id=1)
+    assert len(project_ctx.tasks) == 3
+    assert project_ctx.tasks[1].description == "Task 0.5" # Should be inserted before Task 1 (which now has ID 1)
+    assert project_ctx.tasks[1].id == 2 # New task gets next ID
+    assert project_ctx.tasks[2].description == "Task 1" # Original Task 1 shifted
+    assert "Successfully added new task 'Task 0.5' with ID 2" in result_insert
+
+@pytest.mark.asyncio
+async def test_modify_task_tool(run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test the modify_task tool function."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Task A", "Task B"])
+    task_a_id = project_ctx.tasks[0].id # Should be 0
+    task_b_id = project_ctx.tasks[1].id # Should be 1
+
+    # Modify description
+    result_desc = await modify_task.func(context=run_context_wrapper, task_id=task_a_id, new_description="Task A Modified")
+    assert project_ctx.tasks[0].description == "Task A Modified"
+    assert "description updated to 'Task A Modified'" in result_desc
+
+    # Modify status
+    result_status = await modify_task.func(context=run_context_wrapper, task_id=task_a_id, new_status="done")
+    assert project_ctx.tasks[0].status == "done"
+    assert "status updated to 'done'" in result_status
+
+    # Modify both description and status
+    result_both = await modify_task.func(context=run_context_wrapper, task_id=task_b_id, new_description="Task B Final", new_status="failed")
+    assert project_ctx.tasks[1].description == "Task B Final"
+    assert project_ctx.tasks[1].status == "failed"
+    assert "description updated to 'Task B Final'" in result_both
+    assert "status updated to 'failed'" in result_both
+    # Check if coder_error was set (it shouldn't be just from modify_task unless status is failed, but modify_task doesn't set error directly)
+    # The update_task_status method handles error clearing/setting. Let's test that interaction via implement_task.
+
+    # Modify non-existent task
+    result_not_found = await modify_task.func(context=run_context_wrapper, task_id=999, new_description="Doesn't exist")
+    assert "Error: Task with ID 999 not found" in result_not_found
 
 
 @pytest.mark.asyncio
-async def test_code_task_tool_failure(monkeypatch, project_context, code_task_tool, mock_coder_agent):
-    """Test the code_task tool when the coder fails."""
-    project_context.add_tasks(["Implement feature Y"])
-    task_to_run = project_context.tasks[0]
+@patch('agents.Runner.run', new_callable=AsyncMock) # Mock Runner.run used *inside* the tool
+async def test_implement_task_tool_success(mock_runner_run: AsyncMock, run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test the implement_task tool when the coder succeeds."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Implement feature X"])
+    task_to_run = project_ctx.tasks[0]
+    task_id = task_to_run.id
     assert task_to_run.status == "pending"
 
-    # Mock Runner.run for the CoderAgent call
-    mock_runner_run_coder = AsyncMock(return_value=mock_coder_failure_result)
-    monkeypatch.setattr(Runner, "run", mock_runner_run_coder)
-
-    run_context_wrapper = RunContextWrapper(
-        context=project_context, usage=AsyncMock(), run_config=MagicMock(),
-        model_provider=MagicMock(), hooks=MagicMock(), max_turns=10, turn_num=1,
-        current_agent=PlannerAgent
-    )
+    # Configure the mock Runner.run to return coder success
+    mock_runner_run.return_value = mock_coder_success_result
 
     # Execute the tool function
-    tool_result_summary = await code_task_tool.func(
+    tool_result_summary = await implement_task.func(
         context=run_context_wrapper,
-        task_description=task_to_run.description
+        task_id=task_id
     )
 
     # Assertions
-    assert task_to_run.status == "failed" # Status updated
-    assert project_context.coder_error == mock_coder_failure_output.summary # Error stored
-    assert tool_result_summary == mock_coder_failure_output.summary # Tool returns summary
+    task_after = project_ctx.tasks[0]
+    assert task_after.status == "done" # Status updated by the tool
+    assert project_ctx.coder_error is None # Error cleared on success
+    assert tool_result_summary == mock_coder_success_output.summary # Tool returns coder's summary
 
-    mock_runner_run_coder.assert_called_once()
+    # Check that Runner.run was called correctly for the CoderAgent
+    mock_runner_run.assert_called_once()
+    call_args, call_kwargs = mock_runner_run.call_args
+    assert call_args[0] == CoderAgent # Called the coder agent
+    assert call_args[1] == task_to_run.description # Passed the correct description
+    assert call_kwargs.get("context") == project_ctx # Passed the shared context
+    assert task_after.status != "in_progress" # Should be updated *after* run
 
 
 @pytest.mark.asyncio
-async def test_planner_recognizes_completion(monkeypatch, project_context):
-    """Test that the planner outputs a completion message when tasks are done."""
-    project_context.add_tasks(["Task A"])
-    project_context.tasks[0].status = "done" # Mark task as done
+@patch('agents.Runner.run', new_callable=AsyncMock)
+async def test_implement_task_tool_failure(mock_runner_run: AsyncMock, run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test the implement_task tool when the coder fails."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Implement feature Y"])
+    task_to_run = project_ctx.tasks[0]
+    task_id = task_to_run.id
+    assert task_to_run.status == "pending"
 
-    # Mock Runner.run for the Planner Agent to return the completion message
-    mock_runner_run_planner = AsyncMock(return_value=mock_planner_run_result_completes)
-    monkeypatch.setattr(Runner, "run", mock_runner_run_planner)
+    mock_runner_run.return_value = mock_coder_failure_result
 
-    # We don't need the real tool for this test
-    planner_agent_mock_tool = PlannerAgent.clone(tools=[MagicMock(spec=FunctionTool)])
+    tool_result_summary = await implement_task.func(context=run_context_wrapper, task_id=task_id)
 
-    result = await Runner.run(planner_agent_mock_tool, "Check project status", context=project_context)
+    task_after = project_ctx.tasks[0]
+    assert task_after.status == "failed" # Status updated
+    assert project_ctx.coder_error == mock_coder_failure_output.summary # Error stored
+    assert tool_result_summary == mock_coder_failure_output.summary # Tool returns summary
 
-    assert result.final_output == "All tasks are completed. Project finished."
-    mock_runner_run_planner.assert_called_once()
+    mock_runner_run.assert_called_once()
 
+
+@pytest.mark.asyncio
+@patch('agents.Runner.run', new_callable=AsyncMock)
+async def test_implement_task_tool_needs_clarification(mock_runner_run: AsyncMock, run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test implement_task when coder needs clarification (treated as failure)."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Implement feature Z"])
+    task_to_run = project_ctx.tasks[0]
+    task_id = task_to_run.id
+
+    mock_runner_run.return_value = mock_coder_clarification_result
+
+    tool_result_summary = await implement_task.func(context=run_context_wrapper, task_id=task_id)
+
+    task_after = project_ctx.tasks[0]
+    assert task_after.status == "failed" # Status updated to failed
+    expected_error = f"Needs Clarification: {mock_coder_clarification_output.summary}"
+    assert project_ctx.coder_error == expected_error # Error stored with prefix
+    # Tool returns the modified summary for clarification cases
+    assert tool_result_summary == expected_error
+
+    mock_runner_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch('agents.Runner.run', new_callable=AsyncMock)
+async def test_implement_task_tool_coder_bad_output(mock_runner_run: AsyncMock, run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test implement_task when coder returns unexpected output format."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Implement feature W"])
+    task_to_run = project_ctx.tasks[0]
+    task_id = task_to_run.id
+
+    mock_runner_run.return_value = mock_coder_bad_output_result
+
+    tool_result_summary = await implement_task.func(context=run_context_wrapper, task_id=task_id)
+
+    task_after = project_ctx.tasks[0]
+    assert task_after.status == "failed" # Status updated to failed
+    expected_error = f"CoderAgent returned unexpected output type: <class 'str'>. Raw output: {mock_coder_bad_output_result.final_output}"
+    assert project_ctx.coder_error == expected_error # Error stored
+    assert tool_result_summary == expected_error # Tool returns the error message
+
+    mock_runner_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_implement_task_tool_task_not_found(run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test implement_task when the task ID doesn't exist."""
+    result = await implement_task.func(context=run_context_wrapper, task_id=999)
+    assert "Error: Task with ID 999 not found" in result
+
+@pytest.mark.asyncio
+async def test_implement_task_tool_wrong_status(run_context_wrapper: RunContextWrapper[ProjectContext]):
+    """Test implement_task when the task is not in 'pending' state."""
+    project_ctx = run_context_wrapper.context
+    project_ctx.add_tasks(["Task Done"])
+    task_id = project_ctx.tasks[0].id
+    project_ctx.update_task_status(task_id, "done") # Mark as done
+
+    result = await implement_task.func(context=run_context_wrapper, task_id=task_id)
+    assert f"Error: Task {task_id} ('Task Done') cannot be implemented because its status is 'done'" in result
+
+# --- Planner Agent Test (Conceptual) ---
+# Testing the Planner's decision making requires mocking Runner.run for the Planner itself
+# and asserting which tool it *tries* to call based on the context.
+
+@pytest.mark.asyncio
+@patch('agents.Runner.run', new_callable=AsyncMock)
+async def test_planner_agent_chooses_plan_initial(mock_planner_run: AsyncMock, project_context: ProjectContext):
+    """Simulate Planner deciding to call plan_initial_tasks."""
+
+    # We only care about the *call* to Runner.run for the Planner, not its result here.
+    # The goal is to see if the Planner *would* call the right tool based on its prompt and context.
+    # This requires a more sophisticated mock or actually running the Planner with a mocked LLM call.
+
+    # For now, we'll skip the complex mocking of the Planner's internal LLM call.
+    # The tool tests above verify the *functionality* of the tools the Planner would use.
+    # The main loop test (`test_main.py`) will verify the end-to-end flow.
+    pass

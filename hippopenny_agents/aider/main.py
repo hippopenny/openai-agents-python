@@ -8,11 +8,14 @@ from typing import Tuple
 # import sys
 # sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
 
-from agents import Runner, Agent, RunResult, ItemHelpers, MessageOutputItem, ToolCallItem, ToolCallOutputItem, MaxTurnsExceeded
+from agents import (
+    Runner, Agent, RunResult, ItemHelpers, MessageOutputItem,
+    ToolCallItem, ToolCallOutputItem, MaxTurnsExceeded, ResponseOutputText
+)
 
 from hippopenny_agents.aider.models import ProjectContext
-# Import the new tools as well
-from hippopenny_agents.aider.agents import PlannerAgent, CoderAgent, create_code_task_tool, plan_initial_tasks, add_task, modify_task
+# Import the revised PlannerAgent which now includes its tools
+from hippopenny_agents.aider.agents import PlannerAgent
 
 # Attempt to import console and Spinner, fallback if rich is not installed
 try:
@@ -44,10 +47,11 @@ def print_error(message: str, style: str = "red"):
          print(f"✗ {message}")
 
 
-async def run_aider(project_goal: str, max_turns: int = 15) -> Tuple[ProjectContext, str]: # Increased default max_turns
+async def run_aider(project_goal: str, max_turns: int = 20) -> Tuple[ProjectContext, str]: # Increased default max_turns
     """
-    Runs the Planner-Coder agent loop using the "Agent as Tool" pattern.
-    The Planner agent orchestrates the process, including dynamic plan updates.
+    Runs the Planner-Coder agent loop using the refined Planner agent and tools.
+    The Planner agent orchestrates the process, managing tasks and delegating
+    implementation via tools.
 
     Args:
         project_goal: The high-level goal for the project.
@@ -61,74 +65,94 @@ async def run_aider(project_goal: str, max_turns: int = 15) -> Tuple[ProjectCont
     # 1. Initialize Context
     project_context = ProjectContext(project_goal=project_goal)
 
-    # 2. Create Agents and Tools
-    # Coder Agent is defined in its module
-    code_task_tool = create_code_task_tool(CoderAgent)
-    # Planner Agent needs all tools now
-    planner_agent_with_tools = PlannerAgent.clone(
-        tools=[code_task_tool]
-    )
+    # 2. Planner Agent (already includes its tools)
+    # No separate tool creation needed here anymore
+    planner_agent = PlannerAgent
 
     final_planner_message = "Aider run did not complete."
-    planner_input_message = f"Start project: {project_goal}" # Initial trigger
+    # Initial input for the planner
+    planner_input = f"Project Goal: {project_goal}. The task list is currently empty. Please plan the initial tasks."
 
     # 3. Main Loop - Run Planner until completion or max_turns
     for turn in range(max_turns):
         current_turn = turn + 1
-        print_status(f"--- Planner Turn {current_turn}/{max_turns} ---", style="yellow")
-        print_status(f"Current Tasks: {[(t.id, t.status) for t in project_context.tasks]}")
-        print_status(f"Planner Input: '{planner_input_message}'")
+        print_status(f"\n--- Planner Turn {current_turn}/{max_turns} ---", style="yellow")
+        # Display tasks with status and ID for clarity
+        task_summary = [(t.id, t.description, t.status) for t in project_context.tasks]
+        print(f"Current Tasks: {task_summary if task_summary else 'No tasks yet.'}")
+        if project_context.coder_error:
+             # Find which task the error belongs to (the most recent failed one)
+             failed_task_id = None
+             for task in reversed(project_context.tasks):
+                 if task.status == 'failed':
+                     failed_task_id = task.id
+                     break
+             error_context = f" (for Task {failed_task_id})" if failed_task_id is not None else ""
+             print_error(f"Last Coder Error{error_context}: {project_context.coder_error}")
+        print(f"Planner Input: '{planner_input}'")
 
         try:
             # Run the Planner Agent for one logical step
-            # It will decide whether to plan, code, add, modify, or finish based on context
-            planner_result = await Runner.run(
-                planner_agent_with_tools,
-                input=planner_input_message,
-                context=project_context,
+            planner_result: RunResult[ProjectContext] = await Runner.run(
+                planner_agent,
+                input=planner_input,
+                context=project_context, # Pass the mutable context
                 max_turns=1 # Planner should decide its next action in one turn
             )
 
-            # Extract the text output from the planner
-            final_planner_message = ItemHelpers.text_message_outputs(planner_result.new_items)
-            print_status(f"Planner Output: {final_planner_message}")
-
-            # --- Check for Tool Calls (for logging/debug) ---
+            # --- Process Planner Output ---
+            planner_text_output = ""
             tool_called = False
-            tool_output_summary = "" # Capture output to feed back to planner
+            tool_name_called = ""
+            tool_output_summary = "" # Capture output from the tool run
+
+            # Process items generated in this turn
             for item in planner_result.new_items:
-                 if isinstance(item, ToolCallItem):
-                     tool_called = True
-                     print_status(f"  Planner called tool: {item.tool_name} with input {item.tool_input}")
-                 elif isinstance(item, ToolCallOutputItem):
-                     tool_output_summary = item.output # Get the summary string returned by the tool
-                     print_status(f"  Tool output received by planner: {tool_output_summary}")
-                     # Use tool output as input for the next planner turn for context
-                     planner_input_message = f"Tool '{item.tool_name}' finished. Result: {tool_output_summary}"
+                if isinstance(item, MessageOutputItem):
+                    # Extract text response from the planner
+                    last_content = item.content[-1] if item.content else None
+                    if isinstance(last_content, ResponseOutputText):
+                        planner_text_output = last_content.text
+                        print_status(f"Planner Message: {planner_text_output}")
+                elif isinstance(item, ToolCallItem):
+                    tool_called = True
+                    tool_name_called = item.tool_name
+                    # Log the tool call the planner decided to make
+                    print_status(f"  Planner called tool: {item.tool_name} with input {item.tool_input}")
+                elif isinstance(item, ToolCallOutputItem):
+                    # Capture the result returned by the tool function
+                    tool_output_summary = str(item.output) # Ensure it's a string
+                    print_status(f"  Tool '{item.tool_name}' executed. Result: {tool_output_summary}")
 
-
-            # --- Check for Completion ---
-            # The Planner's instructions tell it to stop calling tools when done.
-            # We check the context state *after* the planner run.
-            if project_context.are_all_tasks_done():
-                print_final("Project completed successfully (all tasks marked 'done').")
-                # Use the planner's final message if it provided one and didn't call a tool
-                if not tool_called:
-                     final_planner_message = final_planner_message or "Project finished successfully."
+            # --- Determine Next Planner Input ---
+            if tool_called:
+                # If a tool was called, feed its result back to the planner
+                # The context was already modified *by the tool function*
+                planner_input = f"Previous action: Called tool '{tool_name_called}'. Result: {tool_output_summary}. Current task status is updated in the context. Decide the next step based on the project goal and task list."
+            elif planner_text_output:
+                # If the planner just responded with text (e.g., completion message, clarification)
+                # Use its text output as the final message if the loop ends here.
+                final_planner_message = planner_text_output
+                # Check if the project is actually done according to context
+                if project_context.are_all_tasks_done():
+                    print_final("Planner indicated completion, and all tasks are 'done'.")
+                    break # Project is complete
                 else:
-                     # If it called a tool on the last turn but tasks are done, override message
-                     final_planner_message = "Project finished successfully."
-                break
-
-            # If the planner didn't call a tool and tasks are not done, it might be blocked or finished incorrectly.
-            if not tool_called:
-                 print_error(f"Planner did not call a tool, but project is not complete. Stopping. Final message: {final_planner_message}")
+                    # Planner talked but didn't finish and didn't call a tool. Might be asking a question or stuck.
+                    print_error(f"Planner provided text output but project is not complete. Stopping. Planner message: {planner_text_output}")
+                    break # Stop if planner talked but didn't finish
+            else:
+                 # Planner didn't call a tool and didn't provide text output (shouldn't happen with max_turns=1)
+                 print_error("Planner did not call a tool or provide text output. Stopping.")
+                 final_planner_message = "Error: Planner failed to produce output."
                  break
 
-            # If no tool output was generated to form the next input (e.g., planner just talked), use a generic prompt
-            if not tool_output_summary:
-                 planner_input_message = "Continue managing the project based on the current task status and previous actions."
-
+            # --- Check for Completion State (after processing turn results) ---
+            if project_context.are_all_tasks_done():
+                print_final("Project completed successfully (all tasks marked 'done' in context).")
+                # Use the planner's final text message if it provided one, otherwise use a default.
+                final_planner_message = planner_text_output or "Project finished successfully."
+                break
 
         except MaxTurnsExceeded:
              # This applies to the *inner* run of the Planner (max_turns=1)
@@ -138,10 +162,8 @@ async def run_aider(project_goal: str, max_turns: int = 15) -> Tuple[ProjectCont
         except Exception as e:
             print_error(f"Error during Planner turn {current_turn}: {e}")
             final_planner_message = f"Error occurred: {e}"
-            # Optionally, mark the current task as failed if applicable
-            # current_task = project_context.get_next_pending_task()
-            # if current_task and current_task.status == "in_progress":
-            #    project_context.update_task_status(current_task.id, "failed", f"Planner error: {e}")
+            # Optionally mark the current task as failed if applicable and identifiable
+            # (This might be complex if the error happened before tool execution)
             break
 
         # Optional: Add a small delay between turns if needed
@@ -157,12 +179,23 @@ async def run_aider(project_goal: str, max_turns: int = 15) -> Tuple[ProjectCont
     if not project_context.tasks:
         print("  No tasks were planned.")
     for task in project_context.tasks:
-        print(f"  - Task {task.id}: {task.description} [{task.status}]")
+        status_color = "green" if task.status == "done" else "red" if task.status == "failed" else "yellow" if task.status == "in_progress" else "blue"
+        print_status(f"  - Task {task.id}: {task.description} [{task.status}]", style=status_color)
         # Check for the last error associated with this task if it failed
-        # Note: This assumes coder_error reflects the error for the *last* failed task update
         if task.status == 'failed' and project_context.coder_error:
-             # A more robust system might store errors per-task
-             print(f"    Last Error: {project_context.coder_error}")
+             # Check if this task is the one associated with the current coder_error
+             # (Simple check: assume error belongs to the last task updated to 'failed')
+             # A more robust system might store errors per-task or link error to task ID.
+             is_last_failed = True # Simplistic assumption for now
+             # More complex check: find highest ID among failed tasks, or store last failed ID
+             # last_failed_id = None
+             # for t in reversed(project_context.tasks):
+             #     if t.status == 'failed':
+             #         last_failed_id = t.id
+             #         break
+             # if task.id == last_failed_id:
+             if is_last_failed:
+                 print_error(f"    Last Error: {project_context.coder_error}")
     print(f"Final Planner Message: {final_planner_message}")
     print("-------------------------")
 
@@ -173,30 +206,35 @@ async def main():
     # Example Usage
     project_goal = input("Enter the project goal: ")
     if not project_goal:
-        project_goal = "Create a python script that prints 'Hello, Aider!' and then writes it to a file 'output.txt'."
+        project_goal = "Create a python script 'hello.py' that prints 'Hello, Aider!' to the console."
+        # project_goal = "Create a python script that prints 'Hello, Aider!' and then writes it to a file 'output.txt'." # More complex goal
 
     # Setup environment (e.g., API keys) if needed
-    # You might need to load .env file or set environment variables
-    # Example using python-dotenv:
     try:
         from dotenv import load_dotenv
-        load_dotenv()
-        print("Loaded .env file")
+        if load_dotenv():
+            print("Loaded .env file")
+        else:
+            print("No .env file found or it is empty.")
     except ImportError:
         print("dotenv not installed, skipping .env file load")
 
-    # Ensure API key is available (replace with your actual key loading mechanism)
+    # Ensure API key is available
     if not os.getenv("OPENAI_API_KEY"):
          print_error("OPENAI_API_KEY environment variable not set.")
-         return # Exit if key is missing
+         # You might want to prompt for the key here instead of exiting
+         # api_key = input("Please enter your OpenAI API key: ")
+         # if not api_key:
+         #     return
+         # os.environ["OPENAI_API_KEY"] = api_key
+         return # Exit if key is missing and not provided
 
-    # Optional: Set default client if needed globally, though Agent/Runner handles it
+    # Optional: Set default client if needed globally
     # import agents
     # from openai import AsyncOpenAI
-    # agents.set_default_openai_client(AsyncOpenAI())
+    # agents.set_default_openai_client(AsyncOpenAI()) # Already done by default if key is set
 
-
-    await run_aider(project_goal, max_turns=20) # Increased max_turns for dynamic planning
+    await run_aider(project_goal, max_turns=20)
 
 if __name__ == "__main__":
     try:
@@ -204,7 +242,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nAider stopped by user.")
     except Exception as e:
-        print_error(f"An unexpected error occurred: {e}")
+        print_error(f"An unexpected error occurred in main: {e}")
         import traceback
         traceback.print_exc()
-
