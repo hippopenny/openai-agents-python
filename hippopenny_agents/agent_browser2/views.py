@@ -9,83 +9,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Removed imports from browser_use.*
 
-# --- Placeholder definitions for removed browser_use types ---
-
+# --- Placeholder definition for ActionResult ---
+# Kept simple as the placeholder context returns basic dicts now.
+# A real implementation might use a more detailed model from browser_use or similar.
 @dataclass
 class ActionResult:
-    """Placeholder for browser_use.agent.views.ActionResult."""
+    """Placeholder for action results."""
     is_done: Optional[bool] = False
     extracted_content: Optional[str] = None
     error: Optional[str] = None
-    include_in_memory: bool = False
+    # Removed include_in_memory as its usage depends on the runner logic
 
-class BrowserStateHistory(BaseModel):
-    """Placeholder for browser_use.browser.views.BrowserStateHistory."""
-    model_config = ConfigDict(extra='allow') # Allow arbitrary fields for now
-    url: Optional[str] = None
-    title: Optional[str] = None
-    tabs: Optional[List[str]] = None
-    screenshot: Optional[str] = None # Assuming base64 string
-    # Add other fields like interacted_element if needed by history processing
-
-    def to_dict(self) -> Dict[str, Any]:
-        # Simple dict conversion for placeholder
-        return self.model_dump(exclude_none=True)
+# Removed placeholder BrowserStateHistory as state is handled as dict by placeholder context
 
 # --- Tool Input Models ---
-# (These remain unchanged as they are just Pydantic models)
-
-class GoToURLParams(BaseModel):
-    url: str = Field(..., description='The URL to navigate to.')
-
-class ClickParams(BaseModel):
-    index: int = Field(..., description='The index of the element to click.')
-
-class InputTextParams(BaseModel):
-    index: int = Field(..., description='The index of the input element.')
-    text: str = Field(..., description='The text to input.')
-    clear_before_input: bool = Field(default=True, description='Whether to clear the field before inputting text.')
-
-class ScrollParams(BaseModel):
-    direction: str = Field(..., description="Direction to scroll ('up' or 'down').")
-    pixels: Optional[int] = Field(default=None, description='Number of pixels to scroll (optional).')
-
-class SelectOptionParams(BaseModel):
-    index: int = Field(..., description='The index of the select element.')
-    option_index: int = Field(..., description='The index of the option to select.')
-
-class CheckboxParams(BaseModel):
-    index: int = Field(..., description='The index of the checkbox element.')
-    checked: bool = Field(..., description='Whether the checkbox should be checked or unchecked.')
-
-class ExtractContentParams(BaseModel):
-    query: Optional[str] = Field(default=None, description='Optional query to guide content extraction.')
-
-class OpenNewTabParams(BaseModel):
-    pass # No parameters needed
-
-class CloseTabParams(BaseModel):
-    pass # No parameters needed
-
-class SwitchTabParams(BaseModel):
-    tab_index: int = Field(..., description='The index of the tab to switch to.')
-
-class GoBackParams(BaseModel):
-    pass # No parameters needed
-
-class UploadFileParams(BaseModel):
-    index: int = Field(..., description='The index of the file input element.')
-    file_path: str = Field(..., description='The path to the file to upload.')
-
-class AskHumanParams(BaseModel):
-    question: str = Field(..., description='The question to ask the human.')
-
-class DoneParams(BaseModel):
-    final_answer: str = Field(..., description='The final answer or result of the task.')
-
+# Removed as tools.py is cleared/changed pattern
 
 # --- Agent State Update Model ---
-
+# Kept as it might be used by a potential update_agent_state tool
 class AgentStateUpdate(BaseModel):
     """Model for the LLM to update its internal state analysis via the update_agent_state tool."""
     page_summary: str = Field(description="Quick detailed summary of new information from the current page which is not yet in the task history memory. Be specific with details which are important for the task. This is not on the meta level, but should be facts. If all the information is already in the task history memory, leave this empty.")
@@ -95,7 +36,7 @@ class AgentStateUpdate(BaseModel):
 
 
 # --- Planner Output Model ---
-
+# Kept as it's used by the Planner class
 class PlannerOutput(BaseModel):
     """Model for the structured output expected from the Planner LLM."""
     state_analysis: str = Field(description="Brief analysis of the current state and what has been done so far based on history.")
@@ -106,17 +47,25 @@ class PlannerOutput(BaseModel):
 
 
 # --- History Tracking ---
+# Kept AgentHistory and AgentHistoryList structure, but note that the new
+# service.py logic does not populate these in detail. This would require
+# mapping the output from agents.Runner back into this structure if needed.
 
 class AgentHistory(BaseModel):
     """History item for a single step of the agent's execution."""
     model_config = ConfigDict(arbitrary_types_allowed=True, protected_namespaces=())
 
-    # Store the state update and the sequence of tool calls/results for this step
-    agent_state_update: Optional[AgentStateUpdate] = None
-    tool_calls: List[Dict[str, Any]] = Field(default_factory=list) # Store tool call details {tool_name: params}
-    tool_results: List[ActionResult] = Field(default_factory=list) # Store results corresponding to tool_calls
-    browser_state: BrowserStateHistory # The browser state *before* the actions were taken (using placeholder)
-    plan: Optional[PlannerOutput | str] = None # Store the plan generated during this step (if any)
+    # Fields to store information about a step
+    step_number: int
+    state_before: Optional[Dict[str, Any]] = None # Store raw state dict
+    plan: Optional[PlannerOutput | str] = None # Store plan used for this step
+    orchestrator_input: Optional[str] = None # Store formatted input to orchestrator
+    orchestrator_output_items: Optional[List[Dict[str, Any]]] = None # Store raw output items from Runner
+    # Simplified results storage
+    action_results: List[Dict[str, Any]] = Field(default_factory=list) # Store raw action result dicts
+
+    # Removed agent_state_update, tool_calls, tool_results, browser_state
+    # as the new orchestration doesn't map directly to these easily.
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         """Custom serialization handling"""
@@ -124,14 +73,16 @@ class AgentHistory(BaseModel):
         if isinstance(self.plan, PlannerOutput):
             plan_dump = self.plan.model_dump()
         elif isinstance(self.plan, str):
-            plan_dump = self.plan # Store raw string if not parsed
+            plan_dump = self.plan
 
+        # Basic dump, might need refinement based on actual content
         return {
-            'agent_state_update': self.agent_state_update.model_dump() if self.agent_state_update else None,
-            'tool_calls': self.tool_calls, # Already dicts
-            'tool_results': [r.__dict__ for r in self.tool_results], # Simple dict conversion for placeholder dataclass
-            'browser_state': self.browser_state.to_dict(), # Use placeholder's method
+            'step_number': self.step_number,
+            'state_before': self.state_before,
             'plan': plan_dump,
+            'orchestrator_input': self.orchestrator_input,
+            'orchestrator_output_items': self.orchestrator_output_items,
+            'action_results': self.action_results,
         }
 
 
@@ -143,119 +94,99 @@ class AgentHistoryList(BaseModel):
         """Save history to JSON file with proper serialization"""
         try:
             Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-            data = self.model_dump()
+            # Use the custom model_dump from AgentHistory
+            data = {'history': [h.model_dump() for h in self.history]}
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            raise e
-
-    def model_dump(self, **kwargs) -> Dict[str, Any]:
-        """Custom serialization that properly uses AgentHistory's model_dump"""
-        return {
-            'history': [h.model_dump(**kwargs) for h in self.history],
-        }
+            # Add logging for save errors
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to save history to {filepath}: {e}", exc_info=True)
+            raise e # Re-raise the exception
 
     @classmethod
     def load_from_file(cls, filepath: str | Path) -> 'AgentHistoryList':
         """Load history from JSON file"""
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        # This needs careful reimplementation based on the new AgentHistory structure
+        # For now, return an empty list as parsing the new structure isn't defined.
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"AgentHistoryList.load_from_file needs reimplementation for new AgentHistory structure. Returning empty history from {filepath}.")
+        # Example parsing logic would go here if needed:
+        # with open(filepath, 'r', encoding='utf-8') as f:
+        #     data = json.load(f)
+        # history_items = [AgentHistory(**h_data) for h_data in data.get('history', [])]
+        # return cls(history=history_items)
+        return cls(history=[])
 
-        # Basic validation/parsing during load
-        history_items = []
-        for h_data in data.get('history', []):
-            state_update = AgentStateUpdate.model_validate(h_data['agent_state_update']) if h_data.get('agent_state_update') else None
-            # Use placeholder BrowserStateHistory
-            browser_state_hist = BrowserStateHistory(**h_data.get('browser_state', {}))
-            # Use placeholder ActionResult
-            tool_results = [ActionResult(**res_data) for res_data in h_data.get('tool_results', [])]
 
-            # Load plan (same logic as before)
-            plan_data = h_data.get('plan')
-            plan = None
-            if isinstance(plan_data, dict):
-                try:
-                    plan = PlannerOutput.model_validate(plan_data)
-                except Exception:
-                    plan = json.dumps(plan_data)
-            elif isinstance(plan_data, str):
-                plan = plan_data
-
-            history_items.append(AgentHistory(
-                agent_state_update=state_update,
-                tool_calls=h_data.get('tool_calls', []),
-                tool_results=tool_results,
-                browser_state=browser_state_hist,
-                plan=plan
-            ))
-        return cls(history=history_items)
-
-    # --- Helper methods to query history ---
-    # (These methods remain largely the same, relying on the structure of AgentHistory)
+    # --- Helper methods might need adjustment based on new AgentHistory structure ---
 
     def errors(self) -> list[str]:
-        """Get all errors from history"""
+        """Get all errors from action results history"""
         errors = []
         for h in self.history:
-            errors.extend([r.error for r in h.tool_results if r.error])
+            errors.extend([str(r.get('error')) for r in h.action_results if r.get('error')])
         return errors
 
     def final_result(self) -> None | str:
-        """Final result from history (assuming 'done' tool provides it)"""
-        if self.history:
-            last_history = self.history[-1]
-            # Check if 'done' was called (assuming tool_calls structure is maintained)
-            if last_history.tool_calls and last_history.tool_calls[-1].get('done'):
-                 if len(last_history.tool_results) == len(last_history.tool_calls):
-                     last_result = last_history.tool_results[-1]
-                     # Assuming 'done' stores its answer in extracted_content
-                     return last_result.extracted_content
+        """Attempt to find a final result (e.g., from a 'done' action). Needs refinement."""
+        if not self.history: return None
+        last_step = self.history[-1]
+        # Check last action result in the last step
+        if last_step.action_results:
+            last_action_result = last_step.action_results[-1]
+            # Heuristic: check if action was 'done' or if result indicates completion
+            action_executed = last_action_result.get('action_executed', {})
+            action_name = next(iter(action_executed), None)
+            if action_name == 'done' or last_action_result.get('is_done'):
+                 # Extract content if available
+                 return str(last_action_result.get('result', 'Task marked done.'))
+        # Check orchestrator text output as fallback
+        if last_step.orchestrator_output_items:
+             last_msg = last_step.orchestrator_output_items[-1]
+             if last_msg.get("type") == "message" and last_msg.get("role") == "assistant":
+                 content = last_msg.get("content", "")
+                 if isinstance(content, list): # Handle vision format
+                     text_parts = [part.get("text","") for part in content if part.get("type")=="text"]
+                     return "\n".join(text_parts)
+                 elif isinstance(content, str):
+                     return content
         return None
 
     def is_done(self) -> bool:
-        """Check if the agent called the 'done' tool in the last step"""
-        if self.history:
-            last_history = self.history[-1]
-            if last_history.tool_calls and last_history.tool_calls[-1].get('done'):
-                if len(last_history.tool_results) == len(last_history.tool_calls):
-                    # Assuming 'done' sets is_done flag in its result
-                    return last_history.tool_results[-1].is_done or False
+        """Check if the task was marked done. Needs refinement."""
+        if not self.history: return False
+        last_step = self.history[-1]
+        if last_step.action_results:
+            last_action_result = last_step.action_results[-1]
+            action_executed = last_action_result.get('action_executed', {})
+            action_name = next(iter(action_executed), None)
+            if action_name == 'done' or last_action_result.get('is_done'):
+                return True
         return False
 
     def has_errors(self) -> bool:
-        """Check if the agent has any errors"""
+        """Check if any step has errors"""
         return len(self.errors()) > 0
 
     def urls(self) -> list[str]:
-        """Get all unique URLs from history"""
-        # Uses placeholder BrowserStateHistory
-        return list(set(h.browser_state.url for h in self.history if h.browser_state and h.browser_state.url))
+        """Get all unique URLs from state history"""
+        urls = set()
+        for h in self.history:
+            if h.state_before and h.state_before.get('url'):
+                urls.add(h.state_before['url'])
+        return list(urls)
 
     def screenshots(self) -> list[str]:
-        """Get all screenshots from history"""
-         # Uses placeholder BrowserStateHistory
-        return [h.browser_state.screenshot for h in self.history if h.browser_state and h.browser_state.screenshot]
-
-    def action_names(self) -> list[str]:
-        """Get all action (tool) names from history"""
-        action_names = []
+        """Get all screenshots from state history"""
+        screenshots = []
         for h in self.history:
-            for tool_call in h.tool_calls:
-                action_names.extend(list(tool_call.keys()))
-        return action_names
+             if h.state_before and h.state_before.get('screenshot'):
+                 screenshots.append(h.state_before['screenshot'])
+        return screenshots
 
-    def model_thoughts(self) -> list[AgentStateUpdate]:
-        """Get all agent state updates from history"""
-        return [h.agent_state_update for h in self.history if h.agent_state_update]
-
-    def extracted_content(self) -> list[str]:
-        """Get all extracted content from history"""
-        content = []
-        for h in self.history:
-            content.extend([r.extracted_content for r in h.tool_results if r.extracted_content])
-        return content
-
-    def plans(self) -> list[PlannerOutput | str | None]:
-        """Get all plans generated during the run."""
-        return [h.plan for h in self.history]
-
+    # Other helper methods (action_names, model_thoughts, extracted_content, plans)
+    # would need significant rework based on how data is stored in the new AgentHistory.
+    # Omitting them for now.
