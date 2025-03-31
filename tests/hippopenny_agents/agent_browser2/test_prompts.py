@@ -82,7 +82,8 @@ def test_system_prompt_builder():
     assert isinstance(content, str)
     assert task in content
     assert "IMPORTANT RULES:" in content
-    assert "INPUT STRUCTURE:" in content
+    # Make assertion more specific/flexible
+    assert "INPUT STRUCTURE (Provided in the User Message):" in content
     # Tool description is added by SDK, not builder itself, so don't check for it here.
 
 def test_planner_prompt_builder():

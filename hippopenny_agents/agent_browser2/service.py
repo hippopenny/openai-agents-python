@@ -112,6 +112,8 @@ async def main_orchestration(
                 logger.error(f"Planner agent failed: {e}", exc_info=True)
                 current_plan = f"Error generating plan: {e}"
                 msg_manager.add_message(f"Plan @ Step {current_step}: {current_plan}")
+                # Break the loop if planner fails
+                break
 
 
             # 3. Format input for the orchestrator agent

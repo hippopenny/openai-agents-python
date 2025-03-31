@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging # Import logging
 import warnings # Import warnings module
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, ConfigDict, Field
 
 # Removed imports from browser_use.*
+
+logger = logging.getLogger(__name__) # Initialize logger
 
 # --- Placeholder definition for ActionResult ---
 # Kept simple as the placeholder context returns basic dicts now.
@@ -101,8 +104,6 @@ class AgentHistoryList(BaseModel):
                 json.dump(data, f, indent=2)
         except Exception as e:
             # Add logging for save errors
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to save history to {filepath}: {e}", exc_info=True)
             raise e # Re-raise the exception
 
@@ -112,20 +113,27 @@ class AgentHistoryList(BaseModel):
         # This needs careful reimplementation based on the new AgentHistory structure
         # For now, return an empty list as parsing the new structure isn't defined.
         # Use warnings.warn instead of logger.warning for testability with pytest.warns
-        warnings.warn(
-            f"AgentHistoryList.load_from_file needs reimplementation for new AgentHistory structure. Returning empty history from {filepath}.",
-            UserWarning,
-            stacklevel=2
-        )
+        # warnings.warn(
+        #     f"AgentHistoryList.load_from_file needs reimplementation for new AgentHistory structure. Returning empty history from {filepath}.",
+        #     UserWarning,
+        #     stacklevel=2
+        # )
         # Example parsing logic would go here if needed:
-        # try:
-        #     with open(filepath, 'r', encoding='utf-8') as f:
-        #         data = json.load(f)
-        #     history_items = [AgentHistory(**h_data) for h_data in data.get('history', [])]
-        #     return cls(history=history_items)
-        # except Exception as e:
-        #      warnings.warn(f"Failed to load or parse history from {filepath}: {e}", UserWarning, stacklevel=2)
-        return cls(history=[])
+        try:
+            # Actually open the file now
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            # Basic parsing attempt - might fail if structure is complex/changed
+            history_items = [AgentHistory(**h_data) for h_data in data.get('history', [])]
+            return cls(history=history_items)
+        except FileNotFoundError:
+             logger.error(f"History file not found: {filepath}")
+             warnings.warn(f"History file not found: {filepath}", UserWarning, stacklevel=2)
+             return cls(history=[])
+        except Exception as e:
+             logger.error(f"Failed to load or parse history from {filepath}: {e}", exc_info=True)
+             warnings.warn(f"Failed to load or parse history from {filepath}: {e}", UserWarning, stacklevel=2)
+             return cls(history=[])
 
 
     # --- Helper methods might need adjustment based on new AgentHistory structure ---
