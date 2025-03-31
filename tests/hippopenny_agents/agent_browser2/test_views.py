@@ -119,13 +119,39 @@ def test_agent_history_list_save_to_file(mock_json_dump, mock_mkdir, mock_file, 
 @patch("builtins.open", new_callable=mock_open, read_data='{"history": []}')
 def test_agent_history_list_load_from_file(mock_file):
     filepath = "test_history.json"
-    # Check that the UserWarning is emitted
-    with pytest.warns(UserWarning, match="needs reimplementation"):
+    # Remove the warns check, as loading valid empty JSON should not warn
+    loaded_history = AgentHistoryList.load_from_file(filepath)
+
+    mock_file.assert_called_once_with(filepath, 'r', encoding='utf-8')
+    assert isinstance(loaded_history, AgentHistoryList)
+    assert loaded_history.history == [] # Check it returns empty list for valid empty JSON
+
+@patch("builtins.open", new_callable=mock_open, read_data='invalid json')
+@patch("hippopenny_agents.agent_browser2.views.logger") # Mock logger within views
+def test_agent_history_list_load_from_file_invalid_json(mock_logger, mock_file):
+    """Test loading with invalid JSON data, expecting a warning."""
+    filepath = "test_history_invalid.json"
+    with pytest.warns(UserWarning, match="Failed to load or parse history"):
         loaded_history = AgentHistoryList.load_from_file(filepath)
 
     mock_file.assert_called_once_with(filepath, 'r', encoding='utf-8')
     assert isinstance(loaded_history, AgentHistoryList)
-    assert loaded_history.history == [] # Check it returns empty list as per warning
+    assert loaded_history.history == [] # Should return empty on error
+    mock_logger.error.assert_called_once() # Check that error was logged
+
+@patch("builtins.open", side_effect=FileNotFoundError("File not found"))
+@patch("hippopenny_agents.agent_browser2.views.logger") # Mock logger within views
+def test_agent_history_list_load_from_file_not_found(mock_logger, mock_open):
+    """Test loading when file does not exist, expecting a warning."""
+    filepath = "non_existent_history.json"
+    with pytest.warns(UserWarning, match="History file not found"):
+        loaded_history = AgentHistoryList.load_from_file(filepath)
+
+    mock_open.assert_called_once_with(filepath, 'r', encoding='utf-8')
+    assert isinstance(loaded_history, AgentHistoryList)
+    assert loaded_history.history == [] # Should return empty on error
+    mock_logger.error.assert_called_once() # Check that error was logged
+
 
 def test_agent_history_list_errors(sample_agent_history_list: AgentHistoryList):
     errors = sample_agent_history_list.errors()

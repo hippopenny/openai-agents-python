@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 # Removed imports from browser_use.*
 
@@ -110,15 +110,6 @@ class AgentHistoryList(BaseModel):
     @classmethod
     def load_from_file(cls, filepath: str | Path) -> 'AgentHistoryList':
         """Load history from JSON file"""
-        # This needs careful reimplementation based on the new AgentHistory structure
-        # For now, return an empty list as parsing the new structure isn't defined.
-        # Use warnings.warn instead of logger.warning for testability with pytest.warns
-        # warnings.warn(
-        #     f"AgentHistoryList.load_from_file needs reimplementation for new AgentHistory structure. Returning empty history from {filepath}.",
-        #     UserWarning,
-        #     stacklevel=2
-        # )
-        # Example parsing logic would go here if needed:
         try:
             # Actually open the file now
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -130,9 +121,14 @@ class AgentHistoryList(BaseModel):
              logger.error(f"History file not found: {filepath}")
              warnings.warn(f"History file not found: {filepath}", UserWarning, stacklevel=2)
              return cls(history=[])
-        except Exception as e:
-             logger.error(f"Failed to load or parse history from {filepath}: {e}", exc_info=True)
+        except (json.JSONDecodeError, ValidationError) as e: # Catch specific parsing errors
+             logger.error(f"Failed to parse history from {filepath}: {e}", exc_info=True)
              warnings.warn(f"Failed to load or parse history from {filepath}: {e}", UserWarning, stacklevel=2)
+             return cls(history=[])
+        except Exception as e: # Catch other potential errors during loading/instantiation
+             logger.error(f"An unexpected error occurred loading history from {filepath}: {e}", exc_info=True)
+             # Optionally warn for unexpected errors too, or just return empty
+             warnings.warn(f"An unexpected error occurred loading history from {filepath}: {e}", UserWarning, stacklevel=2)
              return cls(history=[])
 
 

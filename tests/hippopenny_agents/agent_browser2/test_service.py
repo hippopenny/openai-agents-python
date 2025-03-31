@@ -153,11 +153,13 @@ async def test_main_orchestration_loop(mock_runner_run, mock_context, mock_actio
     planner_calls = [call_args for i, call_args in enumerate(mock_runner_run.call_args_list) if i % 2 == 0]
     assert len(planner_calls) == max_steps_in_test
     for planner_call in planner_calls:
-        # Add check for args length before accessing
-        assert len(planner_call.args) >= 2, f"Planner call missing arguments: {planner_call.args}"
+        # Check agent passed as first positional argument
+        assert len(planner_call.args) >= 1, f"Planner call missing agent argument: {planner_call.args}"
         agent_arg = planner_call.args[0]
-        input_arg = planner_call.args[1]
         assert agent_arg.name == "planner_agent" # Check correct agent was called
+        # Check input passed as keyword argument
+        assert "input" in planner_call.kwargs, f"Planner call missing 'input' keyword argument: {planner_call.kwargs}"
+        input_arg = planner_call.kwargs["input"]
         assert isinstance(input_arg, list)
         assert any(item["content"] == task for item in input_arg) # Check task is in input
         assert any("State @" in item["content"] for item in input_arg) # Check state is in input
@@ -166,11 +168,13 @@ async def test_main_orchestration_loop(mock_runner_run, mock_context, mock_actio
     orchestrator_calls = [call_args for i, call_args in enumerate(mock_runner_run.call_args_list) if i % 2 != 0]
     assert len(orchestrator_calls) == max_steps_in_test
     for orchestrator_call in orchestrator_calls:
-        # Add check for args length before accessing
-        assert len(orchestrator_call.args) >= 2, f"Orchestrator call missing arguments: {orchestrator_call.args}"
+        # Check agent passed as first positional argument
+        assert len(orchestrator_call.args) >= 1, f"Orchestrator call missing agent argument: {orchestrator_call.args}"
         agent_arg = orchestrator_call.args[0]
-        input_arg = orchestrator_call.args[1]
         assert agent_arg.name == "orchestrator_agent" # Check correct agent
+        # Check input passed as keyword argument
+        assert "input" in orchestrator_call.kwargs, f"Orchestrator call missing 'input' keyword argument: {orchestrator_call.kwargs}"
+        input_arg = orchestrator_call.kwargs["input"]
         assert isinstance(input_arg, list)
         # Check the last message content contains formatted state, plan, results etc.
         assert len(input_arg) > 0, "Orchestrator input list is empty"
