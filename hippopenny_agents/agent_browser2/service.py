@@ -214,7 +214,7 @@ if __name__ == "__main__":
     context_instance = BrowserContextImpl()
     # Create Action controller using the browser context
     action_controller = ActionController(context_instance)
-    task_to_run = "Use browser_tool to navigate to example.com and extract the title."
+    task_to_run = "implement suika game."
     max_steps_for_run = 5 # Define max_steps for the run
 
     try:
