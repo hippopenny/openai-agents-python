@@ -1,12 +1,17 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
 import json
+import asyncio # Added import
+from typing import Any, TypeVar # Added imports
 
-from agents import Runner, RunResult, ItemHelpers, TResponseInputItem
+from agents import Runner, RunResult, ItemHelpers, TResponseInputItem, Agent # Added Agent import
 from hippopenny_agents.agent_browser2.context import BaseContext
 from hippopenny_agents.agent_browser2.controller import ActionController
 from hippopenny_agents.agent_browser2.service import main_orchestration
 from hippopenny_agents.agent_browser2.views import PlannerOutput
+
+# Define TypeVar used in MockRunResult
+T = TypeVar('T')
 
 # Mock agents are needed if we don't want to import them directly
 # Mocking Runner.run is the primary approach here
@@ -56,10 +61,24 @@ class MockRunResult(RunResult):
             raise TypeError(f"Expected {cls}, got {type(self._final_output)}")
         # Basic conversion attempt for testing
         try:
-            return cls(**self._final_output) if isinstance(self._final_output, dict) else cls(self._final_output)
-        except Exception:
+            # Ensure cls is callable before attempting instantiation
+            if callable(cls):
+                 # Handle potential dict conversion for Pydantic models
+                 if isinstance(self._final_output, dict):
+                     return cls(**self._final_output)
+                 else:
+                     return cls(self._final_output) # type: ignore[call-arg] # Allow basic type conversion
+            else:
+                 # If cls is not callable (e.g., a generic alias like list[str]), raise error or return None
+                 if raise_if_incorrect_type:
+                     raise TypeError(f"Cannot instantiate non-callable type {cls}")
+                 return None # type: ignore
+        except Exception as e:
+             # Log the error for debugging purposes
+             # logger.error(f"Error during final_output_as conversion to {cls}: {e}", exc_info=True)
              if raise_if_incorrect_type: raise
              return None # type: ignore
+
 
     def to_input_list(self) -> list[TResponseInputItem]:
         # Return a representation of the conversation history after the run
@@ -109,7 +128,8 @@ async def test_main_orchestration_loop(mock_runner_run, mock_context, mock_actio
     # --- Run Orchestration ---
     # Temporarily patch max_steps inside the function for testing
     with patch('hippopenny_agents.agent_browser2.service.max_steps', max_steps_in_test):
-         await main_orchestration(context=mock_context, action_controller=mock_action_controller, task=task)
+         # Pass None for action_controller as it's not used when Runner handles tools
+         await main_orchestration(context=mock_context, action_controller=None, task=task)
 
     # --- Assertions ---
     # Check context calls
@@ -119,7 +139,7 @@ async def test_main_orchestration_loop(mock_runner_run, mock_context, mock_actio
     assert mock_runner_run.call_count == max_steps_in_test * 2
 
     # Check calls to planner agent (first call in each step)
-    planner_calls = [call for i, call in enumerate(mock_runner_run.call_args_list) if i % 2 == 0]
+    planner_calls = [call for i, call_args in enumerate(mock_runner_run.call_args_list) if i % 2 == 0]
     assert len(planner_calls) == max_steps_in_test
     for planner_call in planner_calls:
         agent_arg = planner_call.args[0]
@@ -130,7 +150,7 @@ async def test_main_orchestration_loop(mock_runner_run, mock_context, mock_actio
         assert any("State @" in item["content"] for item in input_arg) # Check state is in input
 
     # Check calls to orchestrator agent (second call in each step)
-    orchestrator_calls = [call for i, call in enumerate(mock_runner_run.call_args_list) if i % 2 != 0]
+    orchestrator_calls = [call for i, call_args in enumerate(mock_runner_run.call_args_list) if i % 2 != 0]
     assert len(orchestrator_calls) == max_steps_in_test
     for orchestrator_call in orchestrator_calls:
         agent_arg = orchestrator_call.args[0]
@@ -155,7 +175,8 @@ async def test_main_orchestration_planner_failure(mock_runner_run, mock_context,
     mock_runner_run.side_effect = RuntimeError("Planner LLM failed")
 
     with patch('hippopenny_agents.agent_browser2.service.max_steps', max_steps_in_test):
-         await main_orchestration(context=mock_context, action_controller=mock_action_controller, task=task)
+         # Pass None for action_controller
+         await main_orchestration(context=mock_context, action_controller=None, task=task)
 
     # Should call get_state once
     assert mock_context.get_state.call_count == 1
@@ -181,7 +202,8 @@ async def test_main_orchestration_orchestrator_failure(mock_runner_run, mock_con
     ]
 
     with patch('hippopenny_agents.agent_browser2.service.max_steps', max_steps_in_test):
-         await main_orchestration(context=mock_context, action_controller=mock_action_controller, task=task)
+         # Pass None for action_controller
+         await main_orchestration(context=mock_context, action_controller=None, task=task)
 
     # Should call get_state once
     assert mock_context.get_state.call_count == 1
@@ -231,7 +253,8 @@ def test_entry_point(mock_asyncio_run, mock_controller_cls, mock_context_cls, mo
          # We need to actually run the async part to test the finally block
          loop = asyncio.get_event_loop()
          try:
-             loop.run_until_complete(main_orchestration(context=context_instance, action_controller=controller_instance, task=task))
+             # Pass None for action_controller as it's created inside __main__ but not passed to main_orchestration anymore
+             loop.run_until_complete(main_orchestration(context=context_instance, action_controller=None, task=task))
          except Exception:
              pass # Ignore exceptions for this test focus
          finally:
@@ -242,9 +265,8 @@ def test_entry_point(mock_asyncio_run, mock_controller_cls, mock_context_cls, mo
 
     # Assertions
     mock_context_cls.assert_called_once()
-    mock_controller_cls.assert_called_once_with(mock_context_instance)
+    mock_controller_cls.assert_called_once_with(mock_context_instance) # Controller is still created in __main__
     mock_main_orchestration.assert_called_once()
     # Check if close was called (and awaited via the loop simulation)
     mock_context_instance.close.assert_called_once()
-
 
