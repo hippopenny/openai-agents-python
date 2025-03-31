@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 @trace("Browser Agent Orchestration") # Add tracing to the main function
 async def main_orchestration(
     context: BaseContext, # Accept BaseContext instead of creating Impl
+    action_controller: Optional[ActionController],
     task: str = "Example Task: Find contact info on example.com"
 ) -> None:
     """
@@ -56,8 +57,7 @@ async def main_orchestration(
     browser_context = context
     # Create message manager instance
     msg_manager = MessageManager()
-    # Create Action controller using the browser context
-    action_controller = ActionController(browser_context)
+
     # History tracking (optional, based on previous structure)
     full_history = AgentHistoryList(history=[])
     # Conversation state for the Runner - starts with the user task
@@ -204,11 +204,13 @@ if __name__ == "__main__":
 
     # Create the specific context implementation here
     context_instance = BrowserContextImpl()
+    # Create Action controller using the browser context
+    action_controller = ActionController(context_instance)
     task_to_run = "Use browser_tool to navigate to example.com and extract the title."
 
     try:
         # Pass the context instance to the orchestration function
-        asyncio.run(main_orchestration(context=context_instance, task=task_to_run))
+        asyncio.run(main_orchestration(context=context_instance, action_controller=action_controller, task=task_to_run))
     except Exception as e:
         logger.error(f"An error occurred during orchestration: {e}", exc_info=True)
     finally:
