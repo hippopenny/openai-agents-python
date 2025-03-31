@@ -8,7 +8,7 @@ from agents import Runner, RunResult, ItemHelpers, TResponseInputItem, Agent # A
 from hippopenny_agents.agent_browser2.context import BaseContext
 from hippopenny_agents.agent_browser2.controller import ActionController
 from hippopenny_agents.agent_browser2.service import main_orchestration
-from hippopenny_agents.agent_browser2.views import PlannerOutput
+from hippopenny_agents.agent_browser2.models import PlannerOutput
 
 # Define TypeVar used in MockRunResult
 T = TypeVar('T')

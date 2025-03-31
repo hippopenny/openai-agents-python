@@ -27,7 +27,7 @@ from .controller import ActionController # Import controller
 # Removed MessageManager import
 from .planner import planner_agent # Import the planner AGENT now
 from .prompts import AgentMessagePrompt # Import prompt formatter
-from .views import AgentHistory, AgentHistoryList, PlannerOutput # Keep history views
+from .models import AgentHistory, AgentHistoryList, PlannerOutput # Keep history views
 
 load_dotenv()
 logger = logging.getLogger(__name__)

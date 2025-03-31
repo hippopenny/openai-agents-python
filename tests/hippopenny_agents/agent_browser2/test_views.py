@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
-from hippopenny_agents.agent_browser2.views import (
+from hippopenny_agents.agent_browser2.models import (
     ActionResult,
     AgentStateUpdate,
     PlannerOutput,
@@ -127,7 +127,7 @@ def test_agent_history_list_load_from_file(mock_file):
     assert loaded_history.history == [] # Check it returns empty list for valid empty JSON
 
 @patch("builtins.open", new_callable=mock_open, read_data='invalid json')
-@patch("hippopenny_agents.agent_browser2.views.logger") # Mock logger within views
+@patch("hippopenny_agents.agent_browser2.models.logger") # Mock logger within views
 def test_agent_history_list_load_from_file_invalid_json(mock_logger, mock_file):
     """Test loading with invalid JSON data, expecting a warning."""
     filepath = "test_history_invalid.json"
@@ -140,7 +140,7 @@ def test_agent_history_list_load_from_file_invalid_json(mock_logger, mock_file):
     mock_logger.error.assert_called_once() # Check that error was logged
 
 @patch("builtins.open", side_effect=FileNotFoundError("File not found"))
-@patch("hippopenny_agents.agent_browser2.views.logger") # Mock logger within views
+@patch("hippopenny_agents.agent_browser2.models.logger") # Mock logger within views
 def test_agent_history_list_load_from_file_not_found(mock_logger, mock_open):
     """Test loading when file does not exist, expecting a warning."""
     filepath = "non_existent_history.json"

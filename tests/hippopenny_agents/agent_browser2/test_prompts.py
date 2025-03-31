@@ -7,7 +7,7 @@ from hippopenny_agents.agent_browser2.prompts import (
     SystemPromptBuilder,
     PlannerPromptBuilder,
 )
-from hippopenny_agents.agent_browser2.views import PlannerOutput
+from hippopenny_agents.agent_browser2.models import PlannerOutput
 
 @pytest.fixture
 def mock_state():
