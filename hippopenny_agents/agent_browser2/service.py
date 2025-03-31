@@ -32,9 +32,6 @@ from .views import AgentHistory, AgentHistoryList, PlannerOutput # Keep history 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound=BaseModel)
-
-
 # ----------------------------------------------------------
 # 5. Orchestration Logic (Based on high-level example)
 # ----------------------------------------------------------
