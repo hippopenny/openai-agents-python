@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings # Import warnings module
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
@@ -110,14 +111,20 @@ class AgentHistoryList(BaseModel):
         """Load history from JSON file"""
         # This needs careful reimplementation based on the new AgentHistory structure
         # For now, return an empty list as parsing the new structure isn't defined.
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"AgentHistoryList.load_from_file needs reimplementation for new AgentHistory structure. Returning empty history from {filepath}.")
+        # Use warnings.warn instead of logger.warning for testability with pytest.warns
+        warnings.warn(
+            f"AgentHistoryList.load_from_file needs reimplementation for new AgentHistory structure. Returning empty history from {filepath}.",
+            UserWarning,
+            stacklevel=2
+        )
         # Example parsing logic would go here if needed:
-        # with open(filepath, 'r', encoding='utf-8') as f:
-        #     data = json.load(f)
-        # history_items = [AgentHistory(**h_data) for h_data in data.get('history', [])]
-        # return cls(history=history_items)
+        # try:
+        #     with open(filepath, 'r', encoding='utf-8') as f:
+        #         data = json.load(f)
+        #     history_items = [AgentHistory(**h_data) for h_data in data.get('history', [])]
+        #     return cls(history=history_items)
+        # except Exception as e:
+        #      warnings.warn(f"Failed to load or parse history from {filepath}: {e}", UserWarning, stacklevel=2)
         return cls(history=[])
 
 

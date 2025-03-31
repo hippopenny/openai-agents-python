@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 async def main_orchestration(
     context: BaseContext, # Accept BaseContext instead of creating Impl
     action_controller: Optional[ActionController], # Keep optional ActionController if needed elsewhere, though not used in loop
-    task: str = "Example Task: Find contact info on example.com"
+    task: str = "Example Task: Find contact info on example.com",
+    max_steps: int = 5 # Added max_steps parameter with default
 ) -> None:
     """
     Runs the orchestration flow based on the high-level example structure,
@@ -50,10 +51,11 @@ async def main_orchestration(
         context: An instance of BaseContext (or its subclass) to interact with the environment.
         action_controller: An instance of ActionController (Optional, currently unused in loop).
         task: The initial goal for the agent.
+        max_steps: The maximum number of steps to execute.
     """
     # Wrap the function body with the trace context manager
     with trace("Browser Agent Orchestration"):
-        logger.info(f"Starting orchestration for task: {task}")
+        logger.info(f"Starting orchestration for task: {task} with max_steps={max_steps}")
 
         # --- Initialization ---
         # Use the provided context instance
@@ -66,7 +68,7 @@ async def main_orchestration(
         # Conversation state for the Runner - starts with the user task
         conversation_inputs: list[TResponseInputItem] = [{"role": "user", "content": task}]
 
-        max_steps = 5 # Limit steps for this example
+        # Use the max_steps parameter passed to the function
         previous_action_results: List[Dict] = []
         current_plan: PlannerOutput | str | None = None # To store the latest plan
 
@@ -210,10 +212,16 @@ if __name__ == "__main__":
     # Create Action controller using the browser context
     action_controller = ActionController(context_instance)
     task_to_run = "Use browser_tool to navigate to example.com and extract the title."
+    max_steps_for_run = 5 # Define max_steps for the run
 
     try:
-        # Pass the context instance and action controller to the orchestration function
-        asyncio.run(main_orchestration(context=context_instance, action_controller=action_controller, task=task_to_run))
+        # Pass the context instance, action controller, and max_steps to the orchestration function
+        asyncio.run(main_orchestration(
+            context=context_instance,
+            action_controller=action_controller,
+            task=task_to_run,
+            max_steps=max_steps_for_run # Pass max_steps here
+        ))
     except Exception as e:
         logger.error(f"An error occurred during orchestration: {e}", exc_info=True)
     finally:

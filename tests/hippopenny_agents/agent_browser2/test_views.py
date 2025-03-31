@@ -1,7 +1,7 @@
 import pytest
 import json
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, MagicMock
 
 from hippopenny_agents.agent_browser2.views import (
     ActionResult,
@@ -93,7 +93,8 @@ def test_agent_history_list_instantiation(sample_agent_history_list: AgentHistor
 
 @patch("builtins.open", new_callable=mock_open)
 @patch("pathlib.Path.mkdir")
-def test_agent_history_list_save_to_file(mock_mkdir, mock_file, sample_agent_history_list: AgentHistoryList):
+@patch("json.dump") # Mock json.dump directly
+def test_agent_history_list_save_to_file(mock_json_dump, mock_mkdir, mock_file, sample_agent_history_list: AgentHistoryList):
     filepath = "test_history.json"
     sample_agent_history_list.save_to_file(filepath)
 
@@ -101,22 +102,30 @@ def test_agent_history_list_save_to_file(mock_mkdir, mock_file, sample_agent_his
     mock_file.assert_called_once_with(filepath, 'w', encoding='utf-8')
     handle = mock_file()
 
-    # Check if json.dump was called (content check is complex due to mocking)
-    assert handle.write.call_count > 0
-    # Basic check if it looks like JSON
-    args, _ = handle.write.call_args
-    assert args[0].strip().startswith('{')
+    # Assert json.dump was called with the correct structure and file handle
+    assert mock_json_dump.call_count == 1
+    call_args, call_kwargs = mock_json_dump.call_args
+    # Check the data structure passed to json.dump
+    dumped_data = call_args[0]
+    assert isinstance(dumped_data, dict)
+    assert "history" in dumped_data
+    assert isinstance(dumped_data["history"], list)
+    assert len(dumped_data["history"]) == len(sample_agent_history_list.history)
+    # Check the file handle and indent
+    assert call_args[1] == handle
+    assert call_kwargs.get("indent") == 2
+
 
 @patch("builtins.open", new_callable=mock_open, read_data='{"history": []}')
 def test_agent_history_list_load_from_file(mock_file):
     filepath = "test_history.json"
-    # Note: Current implementation warns and returns empty list. Test this behavior.
+    # Check that the UserWarning is emitted
     with pytest.warns(UserWarning, match="needs reimplementation"):
         loaded_history = AgentHistoryList.load_from_file(filepath)
 
     mock_file.assert_called_once_with(filepath, 'r', encoding='utf-8')
     assert isinstance(loaded_history, AgentHistoryList)
-    assert loaded_history.history == []
+    assert loaded_history.history == [] # Check it returns empty list as per warning
 
 def test_agent_history_list_errors(sample_agent_history_list: AgentHistoryList):
     errors = sample_agent_history_list.errors()
