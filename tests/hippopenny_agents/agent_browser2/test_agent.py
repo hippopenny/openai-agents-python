@@ -9,6 +9,8 @@ from hippopenny_agents.agent_browser2.agent import (
 )
 # Import the planner agent
 from hippopenny_agents.agent_browser2.planner import planner_agent
+from hippopenny_agents.agent_browser2.models import PlannerOutput
+
 
 def test_agents_are_instances_of_agent_class():
     """Verify that all defined agents are instances of agents.Agent."""
@@ -36,7 +38,6 @@ def test_orchestrator_agent_has_tools():
 
 def test_planner_agent_output_type():
     """Verify the planner agent has the correct output type."""
-    from hippopenny_agents.agent_browser2.views import PlannerOutput
     assert hasattr(planner_agent, 'output_type')
     assert planner_agent.output_type == PlannerOutput
 

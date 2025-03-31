@@ -6,7 +6,7 @@ import logging
 from agents import Agent
 
 from .prompts import PlannerPromptBuilder
-from .views import PlannerOutput
+from .models import PlannerOutput
 
 logger = logging.getLogger(__name__)
 
