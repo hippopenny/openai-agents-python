@@ -18,10 +18,18 @@ T = TypeVar('T')
 
 @pytest.fixture
 def mock_context():
-    """Fixture for a mocked BaseContext."""
+    """Fixture for a mocked BaseContext that also handles history."""
     mock = AsyncMock(spec=BaseContext)
     mock.get_state = AsyncMock(return_value={"url": "mock_url", "title": "Mock Page", "elements": "[]"})
     mock.close = AsyncMock()
+    # Mock history methods
+    mock._history = []
+    def add_msg(message: str):
+        mock._history.append(message)
+    def get_hist() -> list[str]:
+        return mock._history
+    mock.add_message = MagicMock(side_effect=add_msg)
+    mock.get_history = MagicMock(side_effect=get_hist)
     return mock
 
 @pytest.fixture
@@ -145,6 +153,8 @@ async def test_main_orchestration_loop(mock_runner_run, mock_context, mock_actio
     # --- Assertions ---
     # Check context calls
     assert mock_context.get_state.call_count == max_steps_in_test
+    assert mock_context.add_message.call_count == max_steps_in_test * 2 # State + Plan per step
+    assert mock_context.get_history.call_count == max_steps_in_test # Planner input uses history
 
     # Check Runner.run calls (Planner + Orchestrator per step)
     assert mock_runner_run.call_count == max_steps_in_test * 2
@@ -205,6 +215,10 @@ async def test_main_orchestration_planner_failure(mock_runner_run, mock_context,
 
     # Should call get_state once
     assert mock_context.get_state.call_count == 1
+    # Should call add_message once for state, once for error plan
+    assert mock_context.add_message.call_count == 2
+    # Should call get_history once for planner input
+    assert mock_context.get_history.call_count == 1
     # Should call Runner.run once (for the planner, which fails)
     assert mock_runner_run.call_count == 1
     # Orchestrator should not be called because the loop should break
@@ -236,6 +250,10 @@ async def test_main_orchestration_orchestrator_failure(mock_runner_run, mock_con
 
     # Should call get_state once
     assert mock_context.get_state.call_count == 1
+    # Should call add_message once for state, once for plan
+    assert mock_context.add_message.call_count == 2
+    # Should call get_history once for planner input
+    assert mock_context.get_history.call_count == 1
     # Should call Runner.run twice (planner, orchestrator)
     assert mock_runner_run.call_count == 2
     # Check agents called

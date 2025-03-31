@@ -59,4 +59,28 @@ def test_base_context_is_abc():
     # Check if abstract methods exist
     assert 'get_state' in BaseContext.__abstractmethods__
     assert 'execute_action' in BaseContext.__abstractmethods__
+    assert 'add_message' in BaseContext.__abstractmethods__ # Added check
+    assert 'get_history' in BaseContext.__abstractmethods__ # Added check
+
+# --- Tests for new history methods ---
+
+def test_browser_context_impl_history_init(browser_context: BrowserContextImpl):
+    """Test that history is initialized as empty list."""
+    assert browser_context.get_history() == []
+    assert browser_context._history == [] # Check internal attribute too
+
+def test_browser_context_impl_add_message(browser_context: BrowserContextImpl):
+    """Test adding messages to history."""
+    browser_context.add_message("First message")
+    assert browser_context.get_history() == ["First message"]
+    assert browser_context._history == ["First message"]
+    browser_context.add_message("Second message")
+    assert browser_context.get_history() == ["First message", "Second message"]
+    assert browser_context._history == ["First message", "Second message"]
+
+def test_browser_context_impl_get_history(browser_context: BrowserContextImpl):
+    """Test retrieving history after adding messages."""
+    assert browser_context.get_history() == []
+    browser_context.add_message("Test")
+    assert browser_context.get_history() == ["Test"]
 

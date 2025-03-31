@@ -4,7 +4,7 @@ import asyncio # Added import
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List # Added List
 
 # Re-introducing dependency concept, but implementation is placeholder
 # from browser_use.browser.context import BrowserContext # Example of real import
@@ -28,10 +28,21 @@ class BaseContext(ABC):
         """Execute an action and return its result."""
         raise NotImplementedError
 
+    @abstractmethod
+    def add_message(self, message: str) -> None:
+        """Adds a message string to the internal history."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_history(self) -> List[str]:
+        """Returns the list of message strings stored in the history."""
+        raise NotImplementedError
+
 class BrowserContextImpl(BaseContext):
     """Placeholder implementation for browser context interaction."""
     def __init__(self):
         logger.info("Initialized Placeholder BrowserContextImpl")
+        self._history: List[str] = [] # Initialize history
         # In a real implementation, this would likely initialize
         # a browser connection (e.g., Playwright).
         # from browser_use.browser.browser import Browser
@@ -66,7 +77,17 @@ class BrowserContextImpl(BaseContext):
             "is_done": action_name == "done" # Example condition
         }
 
+    def add_message(self, message: str) -> None:
+        """Adds a message string to the internal history."""
+        logger.debug(f"Adding message to context history: {message[:100]}...")
+        self._history.append(message)
+
+    def get_history(self) -> List[str]:
+        """Returns the list of message strings stored in the history."""
+        return self._history
+
     async def close(self):
         """Placeholder for closing browser resources."""
         logger.info("BrowserContextImpl: Closing placeholder resources")
         # Real implementation: await self.context.close(); await self.browser.close()
+
