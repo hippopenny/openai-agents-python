@@ -31,5 +31,3 @@ planner_agent = Agent(
 
 logger.info(f"Defined planner_agent using agents.Agent with output type {PlannerOutput.__name__}")
 
-# The previous Planner class and its generate_plan method are removed.
-# The agents.Runner will handle the LLM interaction and output parsing.

@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 # Re-introduce agents SDK imports
 from agents import Agent
 
-# Keep local imports
-from .context import BrowserAgentContext # Keep for type hints if needed
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +67,3 @@ orchestrator_agent = Agent(
 logger.info("Defined orchestrator_agent with browser_tool and api_tool")
 
 
-# --- Placeholder Standalone Agent (from previous step, kept for reference but not used in main flow) ---
-class StandaloneBrowserAgent:
-    def __init__(self, llm: Any, task: str, system_prompt: str, tools: List[Callable]):
-        self.llm = llm # Placeholder for the LLM client/interface
-        self.task = task
-        self.system_prompt = system_prompt
-        self.tools = tools # List of available tool functions (signatures)
-        logger.info(f"Standalone Browser Agent initialized for task: {task}")
-
-    async def run_step(self, context: BrowserAgentContext, history: List[Dict]) -> Any:
-        """Placeholder for running a single step of the agent."""
-        raise NotImplementedError("Agent execution logic needs reimplementation without agents SDK.")

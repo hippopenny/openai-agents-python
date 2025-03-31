@@ -88,7 +88,7 @@ async def main_orchestration(task: str = "Example Task: Find contact info on exa
                 planner_result: RunResult = await Runner.run(
                     planner_agent,
                     input=planner_input_list,
-                    # context=... # Pass context if planner agent needed it (unlikely)
+                    context=browser_context,
                     max_turns=1 # Planner should respond in one turn
                 )
                 # Extract the structured plan output
@@ -131,7 +131,7 @@ async def main_orchestration(task: str = "Example Task: Find contact info on exa
             orchestrator_result = await Runner.run(
                 orchestrator_agent,
                 input=conversation_inputs,
-                # context=... # Pass context if tools need it directly (less common with as_tool)
+                context=browser_context,
                 max_turns=3 # Allow agent -> tool -> agent response cycle
             )
 
