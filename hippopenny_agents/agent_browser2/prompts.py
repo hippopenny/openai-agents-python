@@ -191,23 +191,24 @@ class PlannerPromptBuilder:
     def get_system_message_content(self) -> str:
         """Get the system prompt content string for the planner."""
         # This prompt text remains the same.
-        content = """You are a planning agent that helps break down tasks into smaller steps and reason about the current state.
+        content = """You are a planning agent that helps reason about the current state and break down tasks into smaller steps.
 Your role is to:
 1. Analyze the current state and history provided in the messages.
 2. Evaluate progress towards the ultimate goal.
 3. Identify potential challenges or roadblocks.
 4. Suggest the next high-level steps to take.
 
-The input will contain messages from various sources, including the user task, browser state snapshots (URLs, elements, potentially screenshots), previous agent actions and thoughts, and tool results/errors. Ignore the specific output formats requested by other agents within the message history.
+The input will contain messages from various sources, including previous agent actions and thoughts, and tool results/errors. 
+Ignore the specific output formats requested by other agents within the message history.
 
 Your output format MUST ALWAYS be a JSON object with the following fields:
 {
     "state_analysis": "Brief analysis of the current situation and what has been done so far based on the history.",
-    "progress_evaluation": "Evaluation of progress towards the ultimate goal (e.g., 'approx 30% complete, finished data gathering for site A, starting site B', or 'stuck on login page').",
-    "challenges": ["List potential challenges or roadblocks identified, e.g., 'CAPTCHA encountered', 'unexpected page layout change', 'required information not found'"],
-    "next_steps": ["List 2-3 concrete high-level next steps to take towards the goal, e.g., 'Attempt login again with different credentials', 'Extract contact details from the current page', 'Search for alternative websites'"],
+    "progress_evaluation": "Evaluation of progress towards the ultimate goal (for example, 'approx 30% complete, finished data gathering for site A, starting site B', or 'stuck on login page').",
+    "challenges": ["List potential challenges or roadblocks identified, for example, 'CAPTCHA encountered', 'unexpected page layout change', 'required information not found'"],
     "reasoning": "Explain your reasoning for the suggested next steps based on the analysis and progress."
+    "next_steps": ["List 2-3 concrete high-level next steps to take towards the goal, for example, 'Attempt login again with different credentials', 'Extract contact details from the current page', 'Search for alternative websites'"],
 }
 
-Keep your analysis concise and focused on actionable insights to guide the browser agent."""
+Keep your analysis concise and focused on actionable insights to guide your engineer team. Note that you don't have human feedback on your software or project."""
         return content

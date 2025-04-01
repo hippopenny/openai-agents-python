@@ -50,17 +50,19 @@ class BrowserContextImpl(BaseContext):
         # self.context = BrowserContext(browser=self.browser)
 
     async def get_state(self) -> Dict[str, Any]:
-        """Retrieve placeholder browser state."""
+        """Retrieve current state."""
         logger.debug("BrowserContextImpl: Getting placeholder state")
-        # Placeholder: return browser state details (URL, elements, etc.)
-        # Real implementation: await self.context.get_state() -> BrowserState
         return {
-            "url": "http://example.com/placeholder",
-            "title": "Placeholder Page",
-            "elements": "[Placeholder element list]",
-            "screenshot": None, # Placeholder for base64 screenshot
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "content": "\n".join(self._history)
         }
+        # return {
+        #     "url": "http://example.com/placeholder",
+        #     "title": "Placeholder Page",
+        #     "elements": "[Placeholder element list]",
+        #     "screenshot": None, # Placeholder for base64 screenshot
+        #     "timestamp": datetime.now().isoformat()
+        # }
 
     async def execute_action(self, action: Dict[str, Any]) -> Dict[str, Any]:
         """Simulate executing a browser action."""

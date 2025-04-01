@@ -26,7 +26,8 @@ planner_agent = Agent(
     output_type=PlannerOutput,
     # Add model settings if needed, e.g., specific model for planning
     # model_settings=ModelSettings(model="gpt-4-turbo"),
-    handoff_description="An agent that analyzes history and generates a plan with state analysis, progress, challenges, and next steps.",
+    handoff_description="analyzes history and generates a plan with state analysis, progress, challenges, and next steps.",
+    model="gpt-4o-mini"
 )
 
 logger.info(f"Defined planner_agent using agents.Agent with output type {PlannerOutput.__name__}")

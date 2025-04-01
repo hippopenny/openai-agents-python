@@ -159,7 +159,7 @@ async def main_orchestration(
             final_text_output = ItemHelpers.text_message_outputs(orchestrator_result.new_items)
             logger.info(f"Orchestrator final text output for step: {final_text_output}")
             # Add orchestrator output to context history? Optional, depends on whether planner needs it.
-            # browser_context.add_message(f"Orchestrator Output @ Step {current_step}: {final_text_output}")
+            context.add_message(f"Orchestrator Output @ Step {current_step}: {final_text_output}")
 
             # Extract tool results from this step to feed into the next step's prompt
             tool_results_this_step = []
@@ -177,6 +177,9 @@ async def main_orchestration(
                      logger.info(f"Tool execution result captured: {tool_output_data}")
 
 
+            for tool_result in tool_results_this_step:
+                context.add_message(f"Tool Result @ Step {current_step}: {json.dumps(tool_result)}")
+
             previous_action_results = tool_results_this_step # Feed results back for next step
 
             # Optional: Detailed History Tracking (using AgentHistoryList)
@@ -185,9 +188,9 @@ async def main_orchestration(
             # full_history.history.append(step_history)
 
             # Check for completion
-            # Example: if final_text_output.lower().startswith("task complete"):
-            #    logger.info("Orchestrator indicated task completion.")
-            #    break
+            if final_text_output.lower().startswith("task complete"):
+                logger.info("Orchestrator indicated task completion.")
+                break
 
         # Ensure current_step is defined even if loop fails early or exits
         current_step = current_step if 'current_step' in locals() else 0
@@ -207,13 +210,13 @@ async def main_orchestration(
 # ----------------------------------------------------------
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logging.basicConfig(filename="./hippopenny_agents/agent_browser2/history.txt", level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Create the specific context implementation here
     context_instance = BrowserContextImpl()
     # Create Action controller using the browser context
     action_controller = ActionController(context_instance)
-    task_to_run = "implement suika game."
+    task_to_run = "implement hello world website in one file. and when user click talk button, it will say the word."
     max_steps_for_run = 5 # Define max_steps for the run
 
     try:
